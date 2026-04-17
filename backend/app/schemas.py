@@ -11,8 +11,12 @@ class Market(BaseModel):
     id: str
     venue: str
     question: str
+    display_title: str
+    subtitle: str | None = None
+    question_segments: list[str] = []
     category: str
     market_prob: float = Field(ge=0, le=1)
+    previous_market_prob: float | None = Field(default=None, ge=0, le=1)
     potter_prob: float = Field(ge=0, le=1)
     sentiment_score: float = Field(ge=-1, le=1)
     trend_score: float = Field(ge=-1, le=1)
@@ -29,6 +33,10 @@ class Market(BaseModel):
     pricing_summary: str
     ml_summary: str
     ai_summary: str
+    latest_pull_at: str | None = None
+    previous_pull_at: str | None = None
+    latest_model_at: str | None = None
+    price_change: float = 0.0
 
 
 class MarketSnapshot(BaseModel):
@@ -137,6 +145,10 @@ class PipelineStatusResponse(BaseModel):
     latest_training_run: str | None
     latest_remote_sync: str | None
     latest_remote_sync_status: str | None
+    latest_market_ingestion: str | None
+    latest_news_ingestion: str | None
+    latest_market_ingestion_status: str | None
+    latest_news_ingestion_status: str | None
     market_count: int
     news_count: int
     model_run_count: int

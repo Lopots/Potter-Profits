@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from .data import load_dashboard
 from .execution import get_execution_status
 from .models import Market as MarketRecord
+from .models import MarketPrice
 from .models import ModelArtifact
 from .models import ModelRun as ModelRunRecord
 from .models import TradeAction
@@ -37,20 +38,48 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
     for model_run in db.scalars(select(ModelRunRecord).order_by(desc(ModelRunRecord.created_at))).all():
         latest_model_runs.setdefault(model_run.market_external_id, model_run)
 
+    price_snapshots: dict[str, list[MarketPrice]] = {}
+    for price_row in db.scalars(select(MarketPrice).order_by(desc(MarketPrice.captured_at))).all():
+        bucket = price_snapshots.setdefault(price_row.market_external_id, [])
+        if len(bucket) < 2:
+            bucket.append(price_row)
+
+    def _split_question(question: str) -> tuple[str, str | None, list[str]]:
+        cleaned = " ".join(question.replace("  ", " ").split())
+        normalized = cleaned.replace(",yes", ", yes").replace(",no", ", no").replace(";yes", "; yes").replace(";no", "; no")
+        if len(normalized) > 92 and "," in normalized:
+            segments = [segment.strip() for segment in normalized.split(",") if segment.strip()]
+        elif len(normalized) > 92 and ";" in normalized:
+            segments = [segment.strip() for segment in normalized.split(";") if segment.strip()]
+        else:
+            segments = [normalized]
+
+        display_title = segments[0]
+        subtitle = " | ".join(segments[1:3]) if len(segments) > 1 else None
+        return display_title, subtitle, segments[:6]
+
     dashboard_markets: list[Market] = []
     for market_row in market_rows:
         model_run = latest_model_runs.get(market_row.external_id)
         metadata = market_row.metadata_json or {}
         market_prob = float(market_row.current_probability or 0.5)
         potter_prob = float(model_run.final_probability) if model_run else float(metadata.get("potter_probability", market_prob))
+        recent_prices = price_snapshots.get(market_row.external_id, [])
+        latest_price = recent_prices[0] if recent_prices else None
+        previous_price = recent_prices[1] if len(recent_prices) > 1 else None
+        display_title, subtitle, question_segments = _split_question(market_row.question)
 
         dashboard_markets.append(
             Market(
                 id=market_row.external_id,
                 venue=market_row.venue,
                 question=market_row.question,
+                display_title=display_title,
+                subtitle=subtitle,
+                question_segments=question_segments,
                 category=market_row.category,
                 market_prob=market_prob,
+                previous_market_prob=float(previous_price.probability) if previous_price else None,
                 potter_prob=potter_prob,
                 sentiment_score=float(metadata.get("sentiment_score", 0.0)),
                 trend_score=float(metadata.get("trend_score", 0.0)),
@@ -67,6 +96,10 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
                 pricing_summary=model_run.pricing_summary if model_run else "No model run has been stored yet.",
                 ml_summary=model_run.ml_summary if model_run else "ML validation has not been run yet.",
                 ai_summary=model_run.ai_summary if model_run else "AI/news context has not been run yet.",
+                latest_pull_at=latest_price.captured_at.isoformat() if latest_price else None,
+                previous_pull_at=previous_price.captured_at.isoformat() if previous_price else None,
+                latest_model_at=model_run.created_at.isoformat() if model_run else None,
+                price_change=round(market_prob - float(previous_price.probability), 4) if previous_price else 0.0,
             )
         )
 

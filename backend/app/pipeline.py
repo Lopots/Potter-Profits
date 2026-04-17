@@ -143,6 +143,19 @@ def _sigmoid(value: float) -> float:
     return 1 / (1 + math.exp(-value))
 
 
+def _mask_database_url(url: str) -> str:
+    if not url:
+        return ""
+    if "@" not in url or "://" not in url:
+        return url
+    prefix, suffix = url.split("://", 1)
+    auth, host = suffix.split("@", 1)
+    if ":" in auth:
+        user, _password = auth.split(":", 1)
+        return f"{prefix}://{user}:***@{host}"
+    return f"{prefix}://***@{host}"
+
+
 def _build_training_dataset(db: Session) -> tuple[list[list[float]], list[int], list[str]]:
     feature_names = [
         "probability",
@@ -928,6 +941,12 @@ def train_probability_model(db: Session) -> dict[str, object]:
 
 def get_pipeline_status(db: Session) -> dict[str, object]:
     latest_audits = db.scalars(select(AuditLog).order_by(desc(AuditLog.created_at)).limit(10)).all()
+    latest_market_ingestion = db.scalar(
+        select(AuditLog).where(AuditLog.event_type == "market_ingestion").order_by(desc(AuditLog.created_at)).limit(1)
+    )
+    latest_news_ingestion = db.scalar(
+        select(AuditLog).where(AuditLog.event_type == "news_ingestion").order_by(desc(AuditLog.created_at)).limit(1)
+    )
     latest_remote_sync = db.scalar(
         select(AuditLog)
         .where(AuditLog.event_type.in_(["remote_sync", "remote_sync_error", "remote_sync_skipped"]))
@@ -944,8 +963,8 @@ def get_pipeline_status(db: Session) -> dict[str, object]:
     training_run_count = len(db.scalars(select(TrainingRun.id)).all())
 
     return {
-        "database_url": settings.local_database_url,
-        "remote_database_url": settings.remote_database_url,
+        "database_url": _mask_database_url(settings.local_database_url),
+        "remote_database_url": _mask_database_url(settings.remote_database_url),
         "market_sources": get_market_client_status(),
         "news_sources": get_news_client_status(),
         "execution": get_execution_status(),
@@ -966,6 +985,10 @@ def get_pipeline_status(db: Session) -> dict[str, object]:
         "latest_training_run": latest_training_run.created_at.isoformat() if latest_training_run else None,
         "latest_remote_sync": latest_remote_sync.created_at.isoformat() if latest_remote_sync else None,
         "latest_remote_sync_status": latest_remote_sync.event_type if latest_remote_sync else None,
+        "latest_market_ingestion": latest_market_ingestion.created_at.isoformat() if latest_market_ingestion else None,
+        "latest_news_ingestion": latest_news_ingestion.created_at.isoformat() if latest_news_ingestion else None,
+        "latest_market_ingestion_status": latest_market_ingestion.event_type if latest_market_ingestion else None,
+        "latest_news_ingestion_status": latest_news_ingestion.event_type if latest_news_ingestion else None,
         "market_count": market_count,
         "news_count": news_count,
         "model_run_count": model_run_count,

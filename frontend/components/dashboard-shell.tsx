@@ -16,59 +16,71 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
 
   return (
     <main className="page-shell">
-      <section className="hero">
-        <div className="hero-copy">
-          <span className="hero-chip">Potter Profits</span>
-          <h1>Find prediction market mispricing before the crowd does.</h1>
-          <p>
-            Potter watches active markets, estimates fair probability, paper trades high-confidence edges,
-            and keeps a full audit trail of every decision.
-          </p>
+      <section className="topbar panel">
+        <div>
+          <span className="eyebrow">Potter Profits</span>
+          <h1 className="topbar-title">Market Ops Console</h1>
         </div>
-        <div className="hero-card">
-          <span className="eyebrow">Live Status</span>
-          <strong>Potter is running in paper mode</strong>
-          <p>Auto-execution is simulated now, with live venues intentionally locked until safety controls are added.</p>
+        <nav className="page-nav" aria-label="Primary">
+          <a href="#overview">Overview</a>
+          <a href="#markets">Markets</a>
+          <a href="#models">Models</a>
+          <a href="#system">System</a>
+          <a href="#trades">Trades</a>
+        </nav>
+        <div className="status-strip">
+          <div>
+            <span className="eyebrow">Mode</span>
+            <strong>{potter.mode === "paper" ? "Paper trading active" : "Live locked"}</strong>
+          </div>
+          <div>
+            <span className="eyebrow">Latest Market Pull</span>
+            <strong>{systemStatus.latest_market_capture ? new Date(systemStatus.latest_market_capture).toLocaleString() : "Waiting"}</strong>
+          </div>
+          <div>
+            <span className="eyebrow">Latest Model Run</span>
+            <strong>{systemStatus.latest_model_run ? new Date(systemStatus.latest_model_run).toLocaleString() : "Waiting"}</strong>
+          </div>
         </div>
       </section>
 
-      <section className="stats-grid">
+      <section id="overview" className="stats-grid">
         <StatCard
           label="Tracked Markets"
           value={String(snapshot.total_markets)}
-          detail="Active venues currently monitored by Potter."
+          detail="Distinct market rows currently being monitored and scored individually."
         />
         <StatCard
           label="Buy Signals"
           value={String(snapshot.buy_signals)}
-          detail="Markets with edge above the current buy threshold."
+          detail="Markets whose latest model edge cleared the current buy threshold."
         />
         <StatCard
           label="Average Edge"
           value={formatPercent(snapshot.average_edge)}
-          detail="Mean difference between market odds and Potter probability."
+          detail="Average difference between venue probability and Potter probability."
         />
         <StatCard
           label="Strongest Edge"
           value={formatPercent(snapshot.strongest_edge)}
-          detail="Largest divergence available on the current board."
+          detail="Largest single-market divergence currently stored in the board."
         />
       </section>
 
-      <section className="content-grid">
-        <PotterPanel potter={potter} />
+      <section id="markets" className="primary-grid">
         <MarketTable markets={markets} />
       </section>
 
-      <section className="stack-section">
+      <section className="content-grid">
+        <SystemPanel systemStatus={systemStatus} />
+        <PotterPanel potter={potter} />
+      </section>
+
+      <section id="models" className="stack-section">
         <ModelStack layers={model_layers} />
       </section>
 
-      <section className="stack-section">
-        <SystemPanel systemStatus={systemStatus} />
-      </section>
-
-      <section>
+      <section id="trades">
         <TradeFeed trades={trades} />
       </section>
     </main>

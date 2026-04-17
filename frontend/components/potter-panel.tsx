@@ -6,7 +6,7 @@ export function PotterPanel({ potter }: { potter: PotterState }) {
       <div className="potter-head">
         <div>
           <span className="eyebrow">Potter Agent</span>
-          <h2>Transparent AI execution</h2>
+          <h2>Decision feed and guardrails</h2>
         </div>
         <span className="status-badge">{potter.mode === "paper" ? "Paper Trading" : "Live Disabled"}</span>
       </div>

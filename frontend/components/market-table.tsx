@@ -1,7 +1,11 @@
 import { Market } from "@/lib/types";
 
 function formatPercent(value: number) {
-  return `${(value * 100).toFixed(0)}%`;
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function formatSignedPercent(value: number) {
+  return `${value >= 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
 }
 
 function formatMoney(value: number) {
@@ -12,25 +16,39 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function formatTimestamp(value?: string | null) {
+  if (!value) {
+    return "Not yet";
+  }
+  return new Date(value).toLocaleString();
+}
+
 export function MarketTable({ markets }: { markets: Market[] }) {
   return (
     <div className="panel">
       <div className="section-header">
         <div>
-          <span className="eyebrow">Signal Board</span>
-          <h2>Top mispriced markets</h2>
+          <span className="eyebrow">Market Monitor</span>
+          <h2>Ingestion status, prices, and per-market model output</h2>
         </div>
-        <p>Potter compares venue odds to model probability and highlights the strongest edge.</p>
+        <p>
+          Each row is a single stored market. Potter shows the last pull time, previous pull, current probability,
+          price change, model breakdown, and current action without grouping multiple titles into one unreadable block.
+        </p>
       </div>
       <div className="table-wrap">
-        <table>
+        <table className="dense-table">
           <thead>
             <tr>
               <th>Market</th>
               <th>Venue</th>
-              <th>Market</th>
+              <th>Last Pull</th>
+              <th>Previous</th>
+              <th>Now</th>
+              <th>Delta</th>
               <th>Potter</th>
               <th>Edge</th>
+              <th>Model</th>
               <th>Action</th>
               <th>Confidence</th>
               <th>Liquidity</th>
@@ -41,16 +59,32 @@ export function MarketTable({ markets }: { markets: Market[] }) {
               <tr key={market.id}>
                 <td>
                   <div className="market-cell">
-                    <strong>{market.question}</strong>
-                    <span>{market.category}</span>
+                    <strong>{market.display_title}</strong>
+                    {market.subtitle ? <span>{market.subtitle}</span> : null}
+                    {market.question_segments.length > 1 ? (
+                      <div className="segment-list">
+                        {market.question_segments.slice(1).map((segment) => (
+                          <span key={`${market.id}-${segment}`} className="mini-pill">
+                            {segment}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
                 </td>
                 <td>{market.venue}</td>
+                <td>{formatTimestamp(market.latest_pull_at)}</td>
+                <td>{market.previous_market_prob == null ? "n/a" : formatPercent(market.previous_market_prob)}</td>
                 <td>{formatPercent(market.market_prob)}</td>
+                <td className={market.price_change >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.price_change)}</td>
                 <td>{formatPercent(market.potter_prob)}</td>
-                <td className={market.edge >= 0 ? "positive" : "negative"}>
-                  {market.edge >= 0 ? "+" : ""}
-                  {formatPercent(market.edge)}
+                <td className={market.edge >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.edge)}</td>
+                <td>
+                  <div className="model-micro">
+                    <span>M {formatSignedPercent(market.deterministic_edge)}</span>
+                    <span>ML {formatSignedPercent(market.ml_confidence_adjustment)}</span>
+                    <span>AI {formatSignedPercent(market.ai_news_adjustment)}</span>
+                  </div>
                 </td>
                 <td>
                   <span className={`pill ${market.action.toLowerCase()}`}>{market.action}</span>
@@ -62,39 +96,40 @@ export function MarketTable({ markets }: { markets: Market[] }) {
           </tbody>
         </table>
       </div>
-      <div className="breakdown-grid">
-        {markets.map((market) => (
+
+      <div className="breakdown-grid market-breakdowns">
+        {markets.slice(0, 12).map((market) => (
           <article key={`${market.id}-breakdown`} className="breakdown-card">
             <div className="breakdown-head">
               <div className="market-cell">
-                <strong>{market.question}</strong>
-                <span>{market.venue}</span>
+                <strong>{market.display_title}</strong>
+                <span>{market.venue} | Last pull {formatTimestamp(market.latest_pull_at)}</span>
               </div>
               <span className={`pill ${market.action.toLowerCase()}`}>{market.action}</span>
             </div>
             <div className="score-row">
-              <span>Math {formatPercent(market.deterministic_edge)}</span>
-              <span>
-                ML {market.ml_confidence_adjustment >= 0 ? "+" : ""}
-                {formatPercent(market.ml_confidence_adjustment)}
-              </span>
-              <span>
-                AI {market.ai_news_adjustment >= 0 ? "+" : ""}
-                {formatPercent(market.ai_news_adjustment)}
-              </span>
-              <span>
-                Final {market.final_score >= 0 ? "+" : ""}
-                {formatPercent(market.final_score)}
-              </span>
+              <span>Market {formatPercent(market.market_prob)}</span>
+              <span>Previous {market.previous_market_prob == null ? "n/a" : formatPercent(market.previous_market_prob)}</span>
+              <span>Potter {formatPercent(market.potter_prob)}</span>
+              <span>Edge {formatSignedPercent(market.edge)}</span>
+            </div>
+            <div className="score-row">
+              <span>Math {formatSignedPercent(market.deterministic_edge)}</span>
+              <span>ML {formatSignedPercent(market.ml_confidence_adjustment)}</span>
+              <span>AI {formatSignedPercent(market.ai_news_adjustment)}</span>
+              <span>Final {formatSignedPercent(market.final_score)}</span>
             </div>
             <p>
-              <strong>Math:</strong> {market.pricing_summary}
+              <strong>Pricing:</strong> {market.pricing_summary}
             </p>
             <p>
               <strong>ML:</strong> {market.ml_summary}
             </p>
             <p>
               <strong>AI:</strong> {market.ai_summary}
+            </p>
+            <p>
+              <strong>Model timestamp:</strong> {formatTimestamp(market.latest_model_at)}
             </p>
           </article>
         ))}

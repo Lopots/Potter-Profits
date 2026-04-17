@@ -2,6 +2,7 @@ import { SystemStatus } from "./types";
 
 export const mockSystemStatus: SystemStatus = {
   database_url: "sqlite:///./potter.db",
+  remote_database_url: "postgresql+psycopg://masked",
   market_sources: {
     kalshi: {
       configured: true,
@@ -32,17 +33,25 @@ export const mockSystemStatus: SystemStatus = {
   },
   openai_configured: true,
   scheduler_enabled: true,
+  remote_sync_enabled: true,
   historical_backfill_enabled: true,
   model_training_enabled: true,
   market_poll_seconds: 300,
   news_poll_seconds: 1800,
   model_poll_seconds: 600,
+  sync_interval_seconds: 900,
   historical_backfill_interval_seconds: 86400,
   model_train_interval_seconds: 21600,
   latest_market_capture: "2026-04-16T23:18:59.260744",
   latest_news_capture: "2026-04-16T23:19:01.235327",
   latest_model_run: "2026-04-16T23:19:01.752252",
   latest_training_run: "2026-04-16T23:49:18.531682",
+  latest_remote_sync: "2026-04-16T23:21:18.531682",
+  latest_remote_sync_status: "remote_sync",
+  latest_market_ingestion: "2026-04-16T23:18:59.260744",
+  latest_news_ingestion: "2026-04-16T23:19:01.235327",
+  latest_market_ingestion_status: "market_ingestion",
+  latest_news_ingestion_status: "news_ingestion",
   market_count: 200,
   news_count: 6,
   model_run_count: 200,
