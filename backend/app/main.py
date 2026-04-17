@@ -7,7 +7,9 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import get_db, init_db
 from app.scheduler import create_scheduler
+from app.schemas import PotterChatRequest
 from app.services import (
+    answer_potter_chat,
     get_dashboard_data,
     get_raw_data,
     get_system_status,
@@ -69,6 +71,11 @@ def system_status(db: Session = Depends(get_db)):
 @app.get("/api/data")
 def raw_data(db: Session = Depends(get_db)):
     return get_raw_data(db)
+
+
+@app.post("/api/chat")
+def potter_chat(payload: PotterChatRequest, db: Session = Depends(get_db)):
+    return answer_potter_chat(db, payload.message)
 
 
 @app.post("/api/pipeline/market-ingestion")

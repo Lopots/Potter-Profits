@@ -74,8 +74,8 @@ class Settings(BaseModel):
 
     default_market_source: str = "kalshi"
     default_news_source: str = "newsapi"
-    enabled_market_sources: str = "kalshi,polymarket"
-    market_fetch_limit: int = Field(default=100, ge=1, le=1000)
+    enabled_market_sources: str = "kalshi"
+    market_fetch_limit: int = Field(default=400, ge=1, le=1000)
     news_fetch_limit: int = Field(default=3, ge=1, le=50)
 
     polymarket_api_url: str = "https://clob.polymarket.com"
@@ -133,8 +133,8 @@ def _build_settings() -> Settings:
         "sync_interval_seconds": int(merged.get("SYNC_INTERVAL_SECONDS", 900)),
         "default_market_source": merged.get("DEFAULT_MARKET_SOURCE", "kalshi"),
         "default_news_source": merged.get("DEFAULT_NEWS_SOURCE", "newsapi"),
-        "enabled_market_sources": merged.get("ENABLED_MARKET_SOURCES", "kalshi,polymarket"),
-        "market_fetch_limit": int(merged.get("MARKET_FETCH_LIMIT", 100)),
+        "enabled_market_sources": merged.get("ENABLED_MARKET_SOURCES", "kalshi"),
+        "market_fetch_limit": int(merged.get("MARKET_FETCH_LIMIT", 400)),
         "news_fetch_limit": int(merged.get("NEWS_FETCH_LIMIT", 3)),
         "polymarket_api_url": merged.get("POLYMARKET_API_URL", "https://clob.polymarket.com"),
         "polymarket_api_key": merged.get("POLYMARKET_API_KEY", ""),

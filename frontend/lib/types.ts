@@ -1,5 +1,5 @@
 export type ActionType = "BUY" | "SELL" | "HOLD";
-export type TradeStatus = "queued" | "simulated" | "blocked";
+export type TradeStatus = "queued" | "simulated" | "blocked" | "closed";
 
 export interface Market {
   id: string;
@@ -9,9 +9,15 @@ export interface Market {
   subtitle?: string | null;
   question_segments: string[];
   category: string;
+  subcategory?: string | null;
+  group_label?: string | null;
   market_prob: number;
   previous_market_prob?: number | null;
   potter_prob: number;
+  yes_prob: number;
+  no_prob: number;
+  yes_label: string;
+  no_label: string;
   sentiment_score: number;
   trend_score: number;
   volume_score: number;
@@ -84,6 +90,28 @@ export interface Trade {
   confidence: number;
   status: TradeStatus;
   rationale: string;
+  entry_probability?: number | null;
+  exit_probability?: number | null;
+  profit_loss: number;
+}
+
+export interface PerformancePoint {
+  timestamp: string;
+  equity: number;
+  bank_balance: number;
+  active_capital: number;
+}
+
+export interface PortfolioSummary {
+  starting_bankroll: number;
+  bank_balance: number;
+  active_capital: number;
+  realized_pnl: number;
+  unrealized_pnl: number;
+  total_equity: number;
+  completed_trades: number;
+  open_positions: number;
+  performance_points: PerformancePoint[];
 }
 
 export interface DashboardResponse {
@@ -92,6 +120,7 @@ export interface DashboardResponse {
   markets: Market[];
   potter: PotterState;
   trades: Trade[];
+  portfolio?: PortfolioSummary;
 }
 
 export interface SourceStatus {
@@ -229,4 +258,14 @@ export interface RawDataResponse {
 export interface DataPageData {
   rawData: RawDataResponse;
   systemStatus: SystemStatus;
+}
+
+export interface PotterChatResponse {
+  answer: string;
+  suggested_prompts: string[];
+  matched_market_ids: string[];
+}
+
+export interface PotterChatRequest {
+  message: string;
 }

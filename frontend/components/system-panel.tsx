@@ -88,7 +88,6 @@ export function SystemPanel({ systemStatus }: { systemStatus: SystemStatus }) {
         <article className="explanation-card">
           <span className="eyebrow">Source Coverage</span>
           <p>Kalshi: {boolLabel(systemStatus.market_sources.kalshi?.configured ?? false)}</p>
-          <p>Polymarket: {boolLabel(systemStatus.market_sources.polymarket?.configured ?? false)}</p>
           <p>NewsAPI: {boolLabel(systemStatus.news_sources.newsapi?.configured ?? false)}</p>
           <p>OpenAI: {boolLabel(systemStatus.openai_configured)}</p>
         </article>

@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 
 
 ActionType = Literal["BUY", "SELL", "HOLD"]
-TradeStatus = Literal["queued", "simulated", "blocked"]
+TradeStatus = Literal["queued", "simulated", "blocked", "closed"]
 
 
 class Market(BaseModel):
@@ -15,9 +15,15 @@ class Market(BaseModel):
     subtitle: str | None = None
     question_segments: list[str] = []
     category: str
+    subcategory: str | None = None
+    group_label: str | None = None
     market_prob: float = Field(ge=0, le=1)
     previous_market_prob: float | None = Field(default=None, ge=0, le=1)
     potter_prob: float = Field(ge=0, le=1)
+    yes_prob: float = Field(ge=0, le=1)
+    no_prob: float = Field(ge=0, le=1)
+    yes_label: str = "Yes"
+    no_label: str = "No"
     sentiment_score: float = Field(ge=-1, le=1)
     trend_score: float = Field(ge=-1, le=1)
     volume_score: float = Field(ge=-1, le=1)
@@ -90,6 +96,28 @@ class Trade(BaseModel):
     confidence: int
     status: TradeStatus
     rationale: str
+    entry_probability: float | None = None
+    exit_probability: float | None = None
+    profit_loss: float = 0.0
+
+
+class PerformancePoint(BaseModel):
+    timestamp: str
+    equity: float
+    bank_balance: float
+    active_capital: float
+
+
+class PortfolioSummary(BaseModel):
+    starting_bankroll: float
+    bank_balance: float
+    active_capital: float
+    realized_pnl: float
+    unrealized_pnl: float
+    total_equity: float
+    completed_trades: int
+    open_positions: int
+    performance_points: list[PerformancePoint]
 
 
 class DashboardResponse(BaseModel):
@@ -98,6 +126,7 @@ class DashboardResponse(BaseModel):
     markets: list[Market]
     potter: PotterState
     trades: list[Trade]
+    portfolio: PortfolioSummary
 
 
 class SourceStatus(BaseModel):
@@ -234,3 +263,13 @@ class RawDataResponse(BaseModel):
     model_runs: list[RawModelRunRow]
     trade_actions: list[RawTradeActionRow]
     audit_logs: list[RawAuditLogRow]
+
+
+class PotterChatRequest(BaseModel):
+    message: str
+
+
+class PotterChatResponse(BaseModel):
+    answer: str
+    suggested_prompts: list[str]
+    matched_market_ids: list[str] = []

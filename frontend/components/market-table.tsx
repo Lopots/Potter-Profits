@@ -62,8 +62,8 @@ export function MarketTable({ markets }: { markets: Market[] }) {
                     {subtitle ? <span>{subtitle}</span> : null}
                     {questionSegments.length > 1 ? (
                       <div className="segment-list">
-                        {questionSegments.slice(1).map((segment) => (
-                          <span key={`${market.id}-${segment}`} className="mini-pill">
+                        {questionSegments.slice(1).map((segment, index) => (
+                          <span key={`${market.id}-${index}-${segment}`} className="mini-pill">
                             {segment}
                           </span>
                         ))}

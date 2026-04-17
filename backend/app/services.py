@@ -1,4 +1,5 @@
-from datetime import timezone
+import re
+from datetime import datetime, timezone
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
@@ -19,10 +20,13 @@ from .schemas import (
     DashboardResponse,
     Market,
     MarketSnapshot,
+    PerformancePoint,
     PipelineRunResponse,
     PipelineStatusResponse,
+    PortfolioSummary,
     PotterState,
     PotterThought,
+    PotterChatResponse,
     RawDataResponse,
     RawMarketPriceRow,
     RawMarketRow,
@@ -40,13 +44,60 @@ def _utc_iso(value):
     return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def _price_at_or_before(price_rows: list[MarketPrice], timestamp, fallback: float) -> float:
+    for row in reversed(price_rows):
+        if row.captured_at <= timestamp:
+            return float(row.probability)
+    return fallback
+
+
+def _normalize_text(value: str) -> str:
+    return re.sub(r"[^a-z0-9\s]+", " ", value.lower()).strip()
+
+
+def _build_market_blurb(market: Market) -> str:
+    yes_prob = market.yes_prob if market.yes_prob is not None else market.market_prob
+    no_prob = market.no_prob if market.no_prob is not None else 1 - market.market_prob
+    action_side = market.yes_label if market.edge >= 0 else market.no_label
+    return (
+        f"{market.display_title}: {market.yes_label} is {yes_prob:.1%}, {market.no_label} is {no_prob:.1%}, "
+        f"Potter's yes estimate is {market.potter_prob:.1%}, edge is {market.edge:+.1%}, "
+        f"and the current action is {market.action} leaning toward {action_side}. "
+        f"Math says: {market.pricing_summary} ML says: {market.ml_summary} AI/news says: {market.ai_summary}"
+    )
+
+
+def _market_match_score(message: str, market: Market) -> int:
+    query_tokens = {token for token in _normalize_text(message).split() if len(token) > 2}
+    market_tokens = {
+        token
+        for token in _normalize_text(
+            " ".join(
+                filter(
+                    None,
+                    [
+                        market.display_title,
+                        market.question,
+                        market.subtitle,
+                        market.group_label,
+                        market.category,
+                        market.subcategory,
+                    ],
+                )
+            )
+        ).split()
+        if len(token) > 2
+    }
+    return len(query_tokens & market_tokens)
+
+
 def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
     if db is None:
         return load_dashboard()
 
     market_rows = db.scalars(
         select(MarketRecord)
-        .where(MarketRecord.status.in_(["active", "open"]))
+        .where(MarketRecord.status.in_(["active", "open"]), MarketRecord.category == "Sports")
         .order_by(MarketRecord.created_at)
     ).all()
     if not market_rows:
@@ -60,10 +111,12 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         latest_model_runs.setdefault(model_run.market_external_id, model_run)
 
     price_snapshots: dict[str, list[MarketPrice]] = {}
-    for price_row in db.scalars(select(MarketPrice).order_by(desc(MarketPrice.captured_at))).all():
-        bucket = price_snapshots.setdefault(price_row.market_external_id, [])
-        if len(bucket) < 2:
-            bucket.append(price_row)
+    price_history: dict[str, list[MarketPrice]] = {}
+    all_price_rows = db.scalars(select(MarketPrice).order_by(MarketPrice.captured_at)).all()
+    for price_row in all_price_rows:
+        price_history.setdefault(price_row.market_external_id, []).append(price_row)
+    for market_external_id, rows in price_history.items():
+        price_snapshots[market_external_id] = list(reversed(rows[-2:]))
 
     def _split_question(question: str) -> tuple[str, str | None, list[str]]:
         cleaned = " ".join(question.replace("  ", " ").split())
@@ -85,10 +138,13 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         metadata = market_row.metadata_json or {}
         market_prob = float(market_row.current_probability or 0.5)
         potter_prob = float(model_run.final_probability) if model_run else float(metadata.get("potter_probability", market_prob))
+        yes_prob = float(metadata.get("yes_prob", market_prob))
+        no_prob = float(metadata.get("no_prob", 1 - market_prob))
         recent_prices = price_snapshots.get(market_row.external_id, [])
         latest_price = recent_prices[0] if recent_prices else None
         previous_price = recent_prices[1] if len(recent_prices) > 1 else None
         display_title, subtitle, question_segments = _split_question(market_row.question)
+        subtitle = metadata.get("subtitle") or subtitle
 
         dashboard_markets.append(
             Market(
@@ -99,9 +155,15 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
                 subtitle=subtitle,
                 question_segments=question_segments,
                 category=market_row.category,
+                subcategory=metadata.get("subcategory"),
+                group_label=metadata.get("group_label"),
                 market_prob=market_prob,
                 previous_market_prob=float(previous_price.probability) if previous_price else None,
                 potter_prob=potter_prob,
+                yes_prob=yes_prob,
+                no_prob=no_prob,
+                yes_label=str(metadata.get("yes_label", "Yes")),
+                no_label=str(metadata.get("no_label", "No")),
                 sentiment_score=float(metadata.get("sentiment_score", 0.0)),
                 trend_score=float(metadata.get("trend_score", 0.0)),
                 volume_score=float(metadata.get("volume_score", 0.0)),
@@ -132,33 +194,124 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         strongest_edge=max(abs(m.edge) for m in dashboard_markets),
     )
 
-    trade_rows = db.scalars(select(TradeAction).order_by(desc(TradeAction.created_at)).limit(12)).all()
+    trade_action_rows = db.scalars(select(TradeAction).order_by(TradeAction.created_at)).all()
     eastern = ZoneInfo("America/New_York")
-    trades = [
-        Trade(
-            id=f"trade-{trade_row.id}",
-            timestamp=trade_row.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(eastern).strftime("%Y-%m-%d %I:%M %p ET"),
-            market_id=trade_row.market_external_id,
-            market_question=next(
-                (market.question for market in dashboard_markets if market.id == trade_row.market_external_id),
-                trade_row.market_external_id,
-            ),
-            venue=trade_row.venue,
-            side=trade_row.side,
-            stake=trade_row.stake,
-            edge_at_entry=next(
-                (market.final_score for market in dashboard_markets if market.id == trade_row.market_external_id),
-                0.0,
-            ),
-            confidence=next(
-                (market.confidence for market in dashboard_markets if market.id == trade_row.market_external_id),
-                55,
-            ),
-            status=trade_row.status,
-            rationale=trade_row.rationale,
+    starting_bankroll = 10000.0
+    bank_balance = starting_bankroll
+    realized_pnl = 0.0
+    open_positions: dict[str, dict[str, float | str | datetime]] = {}
+    performance_points: list[PerformancePoint] = []
+    trades: list[Trade] = []
+    current_probabilities = {market.id: market.market_prob for market in dashboard_markets}
+
+    for trade_row in trade_action_rows:
+        if trade_row.status != "simulated" or trade_row.side == "HOLD":
+            continue
+
+        market_id = trade_row.market_external_id
+        market_question = next(
+            (market.question for market in dashboard_markets if market.id == market_id),
+            market_id,
         )
-        for trade_row in trade_rows
-    ]
+        confidence = next(
+            (market.confidence for market in dashboard_markets if market.id == market_id),
+            55,
+        )
+        edge_at_entry = next(
+            (market.final_score for market in dashboard_markets if market.id == market_id),
+            0.0,
+        )
+        current_probability = current_probabilities.get(market_id, 0.5)
+        entry_probability = _price_at_or_before(price_history.get(market_id, []), trade_row.created_at, current_probability)
+
+        if trade_row.side == "BUY":
+            if market_id in open_positions:
+                continue
+            bank_balance -= trade_row.stake
+            open_positions[market_id] = {
+                "entry_probability": entry_probability,
+                "stake": trade_row.stake,
+                "opened_at": trade_row.created_at,
+                "venue": trade_row.venue,
+                "market_question": market_question,
+                "edge_at_entry": edge_at_entry,
+                "confidence": confidence,
+                "rationale": trade_row.rationale,
+            }
+        elif trade_row.side == "SELL":
+            position = open_positions.pop(market_id, None)
+            if position is None:
+                continue
+            exit_probability = entry_probability
+            stake = float(position["stake"])
+            realized_trade_pnl = (exit_probability - float(position["entry_probability"])) * stake
+            bank_balance += stake + realized_trade_pnl
+            realized_pnl += realized_trade_pnl
+            trades.append(
+                Trade(
+                    id=f"trade-{trade_row.id}",
+                    timestamp=trade_row.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(eastern).strftime("%Y-%m-%d %I:%M %p ET"),
+                    market_id=market_id,
+                    market_question=str(position["market_question"]),
+                    venue=str(position["venue"]),
+                    side="SELL",
+                    stake=stake,
+                    edge_at_entry=float(position["edge_at_entry"]),
+                    confidence=int(position["confidence"]),
+                    status="closed",
+                    rationale=trade_row.rationale,
+                    entry_probability=float(position["entry_probability"]),
+                    exit_probability=exit_probability,
+                    profit_loss=realized_trade_pnl,
+                )
+            )
+
+        active_capital = sum(float(position["stake"]) for position in open_positions.values())
+        unrealized_pnl = sum(
+            (current_probabilities.get(position_market_id, 0.5) - float(position["entry_probability"])) * float(position["stake"])
+            for position_market_id, position in open_positions.items()
+        )
+        performance_points.append(
+            PerformancePoint(
+                timestamp=_utc_iso(trade_row.created_at),
+                equity=round(bank_balance + active_capital + unrealized_pnl, 2),
+                bank_balance=round(bank_balance, 2),
+                active_capital=round(active_capital, 2),
+            )
+        )
+
+    active_capital = sum(float(position["stake"]) for position in open_positions.values())
+    unrealized_pnl = sum(
+        (current_probabilities.get(position_market_id, 0.5) - float(position["entry_probability"])) * float(position["stake"])
+        for position_market_id, position in open_positions.items()
+    )
+    total_equity = bank_balance + active_capital + unrealized_pnl
+    fallback_timestamp = (
+        _utc_iso(latest_model_run.created_at)
+        if latest_model_run
+        else _utc_iso(max((market.latest_pull_at for market in dashboard_markets if market.latest_pull_at), default=None))
+    )
+    if not performance_points:
+        performance_points.append(
+            PerformancePoint(
+                timestamp=fallback_timestamp or "Not yet",
+                equity=round(total_equity, 2),
+                bank_balance=round(bank_balance, 2),
+                active_capital=round(active_capital, 2),
+            )
+        )
+
+    portfolio = PortfolioSummary(
+        starting_bankroll=starting_bankroll,
+        bank_balance=round(bank_balance, 2),
+        active_capital=round(active_capital, 2),
+        realized_pnl=round(realized_pnl, 2),
+        unrealized_pnl=round(unrealized_pnl, 2),
+        total_equity=round(total_equity, 2),
+        completed_trades=len(trades),
+        open_positions=len(open_positions),
+        performance_points=performance_points[-30:],
+    )
 
     execution = get_execution_status()
     potter = PotterState(
@@ -233,6 +386,7 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         markets=dashboard_markets,
         potter=potter,
         trades=trades,
+        portfolio=portfolio,
     )
 
 
@@ -241,11 +395,40 @@ def get_system_status(db: Session) -> PipelineStatusResponse:
 
 
 def get_raw_data(db: Session) -> RawDataResponse:
-    market_rows = db.scalars(select(MarketRecord).order_by(desc(MarketRecord.updated_at)).limit(100)).all()
-    price_rows = db.scalars(select(MarketPrice).order_by(desc(MarketPrice.captured_at)).limit(150)).all()
+    sports_market_ids = set(
+        db.scalars(
+            select(MarketRecord.external_id).where(
+                MarketRecord.venue == "Kalshi",
+                MarketRecord.category == "Sports",
+            )
+        ).all()
+    )
+
+    market_rows = db.scalars(
+        select(MarketRecord)
+        .where(MarketRecord.external_id.in_(sports_market_ids))
+        .order_by(desc(MarketRecord.updated_at))
+        .limit(100)
+    ).all()
+    price_rows = db.scalars(
+        select(MarketPrice)
+        .where(MarketPrice.market_external_id.in_(sports_market_ids))
+        .order_by(desc(MarketPrice.captured_at))
+        .limit(150)
+    ).all()
     news_rows = db.scalars(select(NewsItem).order_by(desc(NewsItem.created_at)).limit(100)).all()
-    model_rows = db.scalars(select(ModelRunRecord).order_by(desc(ModelRunRecord.created_at)).limit(150)).all()
-    trade_rows = db.scalars(select(TradeAction).order_by(desc(TradeAction.created_at)).limit(150)).all()
+    model_rows = db.scalars(
+        select(ModelRunRecord)
+        .where(ModelRunRecord.market_external_id.in_(sports_market_ids))
+        .order_by(desc(ModelRunRecord.created_at))
+        .limit(150)
+    ).all()
+    trade_rows = db.scalars(
+        select(TradeAction)
+        .where(TradeAction.market_external_id.in_(sports_market_ids))
+        .order_by(desc(TradeAction.created_at))
+        .limit(150)
+    ).all()
     audit_rows = db.scalars(select(AuditLog).order_by(desc(AuditLog.created_at)).limit(150)).all()
 
     return RawDataResponse(
@@ -324,6 +507,83 @@ def get_raw_data(db: Session) -> RawDataResponse:
             for row in audit_rows
         ],
     )
+
+
+def answer_potter_chat(db: Session, message: str) -> PotterChatResponse:
+    dashboard = get_dashboard_data(db)
+    system_status = get_system_status(db)
+    normalized_message = _normalize_text(message)
+    completed_trades = [trade for trade in dashboard.trades if trade.status == "closed"]
+    portfolio = dashboard.portfolio
+    ranked_markets = sorted(
+        dashboard.markets,
+        key=lambda market: (_market_match_score(normalized_message, market), abs(market.edge)),
+        reverse=True,
+    )
+    matched_markets = [market for market in ranked_markets if _market_match_score(normalized_message, market) > 0][:3]
+
+    suggested_prompts = [
+        "How does your process work?",
+        "What is my paper portfolio doing right now?",
+        "What market has the strongest edge right now?",
+        "Why do you like this market?",
+    ]
+
+    if any(keyword in normalized_message for keyword in ["how", "process", "work", "ingestion", "pipeline", "model"]):
+        answer = (
+            f"I ingest market prices every {system_status.market_poll_seconds // 60} minutes, news every "
+            f"{system_status.news_poll_seconds // 60} minutes, and score the board every "
+            f"{system_status.model_poll_seconds // 60} minutes. I start with venue pricing, adjust with the "
+            f"ML layer when historical evidence is available, then use the AI/news layer as supporting context. "
+            f"My latest market pull was {system_status.latest_market_capture or 'not yet'}, and my latest model run "
+            f"was {system_status.latest_model_run or 'not yet'}."
+        )
+        return PotterChatResponse(answer=answer, suggested_prompts=suggested_prompts)
+
+    if any(keyword in normalized_message for keyword in ["portfolio", "profit", "loss", "bank", "equity", "performance", "pnl"]):
+        answer = (
+            f"Your paper bank balance is ${portfolio.bank_balance:,.0f}, active capital is ${portfolio.active_capital:,.0f}, "
+            f"realized P/L is ${portfolio.realized_pnl:,.0f}, unrealized P/L is ${portfolio.unrealized_pnl:,.0f}, "
+            f"and total equity is ${portfolio.total_equity:,.0f}. I currently count {portfolio.completed_trades} "
+            f"completed trades and {portfolio.open_positions} open positions."
+        )
+        return PotterChatResponse(answer=answer, suggested_prompts=suggested_prompts)
+
+    if any(keyword in normalized_message for keyword in ["top", "best", "strongest", "edge", "opportunity"]):
+        top_markets = sorted(dashboard.markets, key=lambda market: abs(market.edge), reverse=True)[:3]
+        if not top_markets:
+            answer = "I do not have any live markets loaded yet, so I cannot rank opportunities right now."
+            return PotterChatResponse(answer=answer, suggested_prompts=suggested_prompts)
+        lines = [f"My strongest edges right now are {', '.join(market.display_title for market in top_markets)}."]
+        lines.extend(_build_market_blurb(market) for market in top_markets[:2])
+        return PotterChatResponse(
+            answer=" ".join(lines),
+            suggested_prompts=suggested_prompts,
+            matched_market_ids=[market.id for market in top_markets],
+        )
+
+    if matched_markets:
+        answer = " ".join(_build_market_blurb(market) for market in matched_markets)
+        return PotterChatResponse(
+            answer=answer,
+            suggested_prompts=suggested_prompts,
+            matched_market_ids=[market.id for market in matched_markets],
+        )
+
+    if completed_trades:
+        latest_trade = completed_trades[-1]
+        answer = (
+            f"My latest completed trade was {latest_trade.market_question} on {latest_trade.venue}. "
+            f"It closed with {latest_trade.profit_loss:+.0f} dollars of P/L. "
+            f"If you ask about a specific market, I can explain the probability, edge, and model breakdown."
+        )
+    else:
+        answer = (
+            "I am online and watching the board. Ask me how the process works, what my portfolio is doing, "
+            "or about a specific market and I will explain the current probability and why I lean the way I do."
+        )
+
+    return PotterChatResponse(answer=answer, suggested_prompts=suggested_prompts)
 
 
 def run_market_ingestion(db: Session) -> PipelineRunResponse:

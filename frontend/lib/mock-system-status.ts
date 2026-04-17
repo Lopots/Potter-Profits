@@ -9,11 +9,6 @@ export const mockSystemStatus: SystemStatus = {
       base_url: "https://api.elections.kalshi.com",
       notes: "Public market data endpoints are available without authentication. Trading still requires auth.",
     },
-    polymarket: {
-      configured: true,
-      base_url: "https://clob.polymarket.com",
-      notes: "Public market discovery is available from the Gamma API without authentication.",
-    },
   },
   news_sources: {
     newsapi: {

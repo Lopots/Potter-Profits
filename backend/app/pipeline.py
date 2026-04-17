@@ -107,7 +107,7 @@ def _insert_market_price_if_missing(
 def _preferred_kalshi_backfill_markets(db: Session) -> list[Market]:
     candidates = db.scalars(
         select(Market)
-        .where(Market.venue == "Kalshi")
+        .where(Market.venue == "Kalshi", Market.category == "Sports")
         .order_by(Market.volume_24h.desc().nullslast(), Market.updated_at.desc())
     ).all()
 
@@ -124,7 +124,10 @@ def _hydrate_additional_backfill_markets(db: Session) -> list[Market]:
     desired = max(settings.historical_backfill_market_limit * 4, 50)
     raw_markets = fetch_kalshi_markets_by_statuses(["open", "settled"], limit_per_status=desired)
     for raw_market in raw_markets:
-        _upsert_market(db, normalize_kalshi_market(raw_market))
+        normalized = normalize_kalshi_market(raw_market)
+        if str(normalized.get("category")) != "Sports":
+            continue
+        _upsert_market(db, normalized)
     db.commit()
     return _preferred_kalshi_backfill_markets(db)
 
@@ -557,6 +560,16 @@ def ingest_market_data(db: Session) -> dict[str, object]:
             )
             records_written += 1
 
+    stale_kalshi_rows = db.scalars(
+        select(Market).where(
+            Market.venue == "Kalshi",
+            Market.category != "Sports",
+            Market.status.in_(["active", "open"]),
+        )
+    ).all()
+    for market in stale_kalshi_rows:
+        market.status = "inactive"
+
     db.add(
         AuditLog(
             event_type="market_ingestion",
@@ -581,10 +594,18 @@ def ingest_market_data(db: Session) -> dict[str, object]:
 
 def ingest_news_data(db: Session) -> dict[str, object]:
     source = settings.default_news_source
-    active_markets = db.scalars(select(Market).where(Market.status.in_(["active", "open"])).limit(settings.news_fetch_limit)).all()
+    active_markets = db.scalars(
+        select(Market)
+        .where(Market.status.in_(["active", "open"]), Market.category == "Sports")
+        .limit(settings.news_fetch_limit)
+    ).all()
     if not active_markets:
         ingest_market_data(db)
-        active_markets = db.scalars(select(Market).where(Market.status.in_(["active", "open"])).limit(settings.news_fetch_limit)).all()
+        active_markets = db.scalars(
+            select(Market)
+            .where(Market.status.in_(["active", "open"]), Market.category == "Sports")
+            .limit(settings.news_fetch_limit)
+        ).all()
 
     queries = [market.question for market in active_markets]
     try:
@@ -669,7 +690,7 @@ def ingest_news_data(db: Session) -> dict[str, object]:
 
 
 def run_model_pipeline(db: Session) -> dict[str, object]:
-    markets = db.scalars(select(Market).where(Market.status == "active")).all()
+    markets = db.scalars(select(Market).where(Market.status == "active", Market.category == "Sports")).all()
     news_scores = _latest_news_score_by_market(db)
     training_artifact = _load_latest_training_artifact(db)
     records_written = 0
