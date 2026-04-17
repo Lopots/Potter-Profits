@@ -156,6 +156,12 @@ def _mask_database_url(url: str) -> str:
     return f"{prefix}://***@{host}"
 
 
+def _utc_iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+
+
 def _build_training_dataset(db: Session) -> tuple[list[list[float]], list[int], list[str]]:
     feature_names = [
         "probability",
@@ -408,7 +414,7 @@ def sync_local_to_remote(db: Session) -> dict[str, object]:
         return {
             "job": "remote_sync",
             "status": "disabled",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _utc_iso(datetime.utcnow()),
             "records_written": 0,
         }
 
@@ -425,7 +431,7 @@ def sync_local_to_remote(db: Session) -> dict[str, object]:
             return {
                 "job": "remote_sync",
                 "status": "not_configured",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _utc_iso(datetime.utcnow()),
                 "records_written": 0,
             }
 
@@ -496,7 +502,7 @@ def sync_local_to_remote(db: Session) -> dict[str, object]:
             return {
                 "job": "remote_sync",
                 "status": "completed",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _utc_iso(datetime.utcnow()),
                 "records_written": records_written,
             }
         except Exception as exc:
@@ -512,7 +518,7 @@ def sync_local_to_remote(db: Session) -> dict[str, object]:
             return {
                 "job": "remote_sync",
                 "status": "failed",
-                "timestamp": datetime.utcnow().isoformat(),
+                "timestamp": _utc_iso(datetime.utcnow()),
                 "records_written": 0,
             }
 
@@ -568,7 +574,7 @@ def ingest_market_data(db: Session) -> dict[str, object]:
         "job": "market_ingestion",
         "source": source,
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _utc_iso(datetime.utcnow()),
         "records_written": records_written,
     }
 
@@ -657,7 +663,7 @@ def ingest_news_data(db: Session) -> dict[str, object]:
         "job": "news_ingestion",
         "source": source,
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _utc_iso(datetime.utcnow()),
         "records_written": records_written,
     }
 
@@ -757,7 +763,7 @@ def run_model_pipeline(db: Session) -> dict[str, object]:
     return {
         "job": "model_pipeline",
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _utc_iso(datetime.utcnow()),
         "layers": ["deterministic_pricing", "ml_confidence", "ai_context"],
         "records_written": records_written,
     }
@@ -865,7 +871,7 @@ def backfill_historical_market_data(db: Session) -> dict[str, object]:
     return {
         "job": "historical_backfill",
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _utc_iso(datetime.utcnow()),
         "records_written": records_written,
     }
 
@@ -895,7 +901,7 @@ def train_probability_model(db: Session) -> dict[str, object]:
         return {
             "job": "model_training",
             "status": "insufficient_data",
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": _utc_iso(datetime.utcnow()),
             "records_written": sample_count,
         }
 
@@ -934,7 +940,7 @@ def train_probability_model(db: Session) -> dict[str, object]:
     return {
         "job": "model_training",
         "status": "completed",
-        "timestamp": datetime.utcnow().isoformat(),
+        "timestamp": _utc_iso(datetime.utcnow()),
         "records_written": sample_count,
     }
 
@@ -979,14 +985,14 @@ def get_pipeline_status(db: Session) -> dict[str, object]:
         "sync_interval_seconds": settings.sync_interval_seconds,
         "historical_backfill_interval_seconds": settings.historical_backfill_interval_seconds,
         "model_train_interval_seconds": settings.model_train_interval_seconds,
-        "latest_market_capture": latest_market_price.captured_at.isoformat() if latest_market_price else None,
-        "latest_news_capture": latest_news_item.created_at.isoformat() if latest_news_item else None,
-        "latest_model_run": latest_model_run.created_at.isoformat() if latest_model_run else None,
-        "latest_training_run": latest_training_run.created_at.isoformat() if latest_training_run else None,
-        "latest_remote_sync": latest_remote_sync.created_at.isoformat() if latest_remote_sync else None,
+        "latest_market_capture": _utc_iso(latest_market_price.captured_at) if latest_market_price else None,
+        "latest_news_capture": _utc_iso(latest_news_item.created_at) if latest_news_item else None,
+        "latest_model_run": _utc_iso(latest_model_run.created_at) if latest_model_run else None,
+        "latest_training_run": _utc_iso(latest_training_run.created_at) if latest_training_run else None,
+        "latest_remote_sync": _utc_iso(latest_remote_sync.created_at) if latest_remote_sync else None,
         "latest_remote_sync_status": latest_remote_sync.event_type if latest_remote_sync else None,
-        "latest_market_ingestion": latest_market_ingestion.created_at.isoformat() if latest_market_ingestion else None,
-        "latest_news_ingestion": latest_news_ingestion.created_at.isoformat() if latest_news_ingestion else None,
+        "latest_market_ingestion": _utc_iso(latest_market_ingestion.created_at) if latest_market_ingestion else None,
+        "latest_news_ingestion": _utc_iso(latest_news_ingestion.created_at) if latest_news_ingestion else None,
         "latest_market_ingestion_status": latest_market_ingestion.event_type if latest_market_ingestion else None,
         "latest_news_ingestion_status": latest_news_ingestion.event_type if latest_news_ingestion else None,
         "market_count": market_count,
@@ -997,7 +1003,7 @@ def get_pipeline_status(db: Session) -> dict[str, object]:
             {
                 "event_type": audit.event_type,
                 "message": audit.message,
-                "created_at": audit.created_at.isoformat(),
+                "created_at": _utc_iso(audit.created_at),
             }
             for audit in latest_audits
         ],

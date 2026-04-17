@@ -9,6 +9,7 @@ from app.db.session import get_db, init_db
 from app.scheduler import create_scheduler
 from app.services import (
     get_dashboard_data,
+    get_raw_data,
     get_system_status,
     run_historical_backfill_job,
     run_market_ingestion,
@@ -63,6 +64,11 @@ def dashboard(db: Session = Depends(get_db)):
 @app.get("/api/system/status")
 def system_status(db: Session = Depends(get_db)):
     return get_system_status(db)
+
+
+@app.get("/api/data")
+def raw_data(db: Session = Depends(get_db)):
+    return get_raw_data(db)
 
 
 @app.post("/api/pipeline/market-ingestion")

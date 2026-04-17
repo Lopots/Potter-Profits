@@ -1,4 +1,6 @@
 import { DashboardPageData } from "@/lib/types";
+import { AppHeader } from "./app-header";
+import { formatEasternTimestamp } from "@/lib/time";
 import { MarketTable } from "./market-table";
 import { ModelStack } from "./model-stack";
 import { PotterPanel } from "./potter-panel";
@@ -16,33 +18,12 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
 
   return (
     <main className="page-shell">
-      <section className="topbar panel">
-        <div>
-          <span className="eyebrow">Potter Profits</span>
-          <h1 className="topbar-title">Market Ops Console</h1>
-        </div>
-        <nav className="page-nav" aria-label="Primary">
-          <a href="#overview">Overview</a>
-          <a href="#markets">Markets</a>
-          <a href="#models">Models</a>
-          <a href="#system">System</a>
-          <a href="#trades">Trades</a>
-        </nav>
-        <div className="status-strip">
-          <div>
-            <span className="eyebrow">Mode</span>
-            <strong>{potter.mode === "paper" ? "Paper trading active" : "Live locked"}</strong>
-          </div>
-          <div>
-            <span className="eyebrow">Latest Market Pull</span>
-            <strong>{systemStatus.latest_market_capture ? new Date(systemStatus.latest_market_capture).toLocaleString() : "Waiting"}</strong>
-          </div>
-          <div>
-            <span className="eyebrow">Latest Model Run</span>
-            <strong>{systemStatus.latest_model_run ? new Date(systemStatus.latest_model_run).toLocaleString() : "Waiting"}</strong>
-          </div>
-        </div>
-      </section>
+      <AppHeader
+        activePage="dashboard"
+        latestMarketCapture={systemStatus.latest_market_capture}
+        latestModelRun={systemStatus.latest_model_run}
+        modeLabel={potter.mode === "paper" ? "Paper trading active" : "Live locked"}
+      />
 
       <section id="overview" className="stats-grid">
         <StatCard
@@ -67,21 +48,32 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
         />
       </section>
 
-      <section id="markets" className="primary-grid">
-        <MarketTable markets={markets} />
-      </section>
-
       <section className="content-grid">
         <SystemPanel systemStatus={systemStatus} />
         <PotterPanel potter={potter} />
       </section>
 
-      <section id="models" className="stack-section">
-        <ModelStack layers={model_layers} />
-      </section>
-
-      <section id="trades">
-        <TradeFeed trades={trades} />
+      <section className="stats-grid">
+        <StatCard
+          label="Latest Market Pull"
+          value={formatEasternTimestamp(systemStatus.latest_market_capture)}
+          detail="Go to the Ingestion page for exact ET pull times and previous-vs-current pricing."
+        />
+        <StatCard
+          label="Stored Model Runs"
+          value={String(systemStatus.model_run_count)}
+          detail="Go to the Models page for layer details and current reasoning context."
+        />
+        <StatCard
+          label="Stored Trades"
+          value={String(trades.length)}
+          detail="Go to the Trades page to inspect the latest action trail and rationale."
+        />
+        <StatCard
+          label="Stored News"
+          value={String(systemStatus.news_count)}
+          detail="Go to the Ingestion page to see freshness and recent pipeline audit events."
+        />
       </section>
     </main>
   );

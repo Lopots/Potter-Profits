@@ -1,4 +1,5 @@
 import { Market } from "@/lib/types";
+import { formatEasternTimestamp } from "@/lib/time";
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`;
@@ -14,13 +15,6 @@ function formatMoney(value: number) {
     currency: "USD",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-function formatTimestamp(value?: string | null) {
-  if (!value) {
-    return "Not yet";
-  }
-  return new Date(value).toLocaleString();
 }
 
 export function MarketTable({ markets }: { markets: Market[] }) {
@@ -55,15 +49,20 @@ export function MarketTable({ markets }: { markets: Market[] }) {
             </tr>
           </thead>
           <tbody>
-            {markets.map((market) => (
+            {markets.map((market) => {
+              const displayTitle = market.display_title ?? market.question;
+              const questionSegments = market.question_segments ?? [market.question];
+              const subtitle = market.subtitle ?? null;
+
+              return (
               <tr key={market.id}>
                 <td>
                   <div className="market-cell">
-                    <strong>{market.display_title}</strong>
-                    {market.subtitle ? <span>{market.subtitle}</span> : null}
-                    {market.question_segments.length > 1 ? (
+                    <strong>{displayTitle}</strong>
+                    {subtitle ? <span>{subtitle}</span> : null}
+                    {questionSegments.length > 1 ? (
                       <div className="segment-list">
-                        {market.question_segments.slice(1).map((segment) => (
+                        {questionSegments.slice(1).map((segment) => (
                           <span key={`${market.id}-${segment}`} className="mini-pill">
                             {segment}
                           </span>
@@ -73,7 +72,7 @@ export function MarketTable({ markets }: { markets: Market[] }) {
                   </div>
                 </td>
                 <td>{market.venue}</td>
-                <td>{formatTimestamp(market.latest_pull_at)}</td>
+                <td>{formatEasternTimestamp(market.latest_pull_at)}</td>
                 <td>{market.previous_market_prob == null ? "n/a" : formatPercent(market.previous_market_prob)}</td>
                 <td>{formatPercent(market.market_prob)}</td>
                 <td className={market.price_change >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.price_change)}</td>
@@ -92,18 +91,20 @@ export function MarketTable({ markets }: { markets: Market[] }) {
                 <td>{market.confidence}%</td>
                 <td>{formatMoney(market.liquidity)}</td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
 
       <div className="breakdown-grid market-breakdowns">
-        {markets.slice(0, 12).map((market) => (
+        {markets.slice(0, 12).map((market) => {
+          const displayTitle = market.display_title ?? market.question;
+          return (
           <article key={`${market.id}-breakdown`} className="breakdown-card">
             <div className="breakdown-head">
               <div className="market-cell">
-                <strong>{market.display_title}</strong>
-                <span>{market.venue} | Last pull {formatTimestamp(market.latest_pull_at)}</span>
+                <strong>{displayTitle}</strong>
+                <span>{market.venue} | Last pull {formatEasternTimestamp(market.latest_pull_at)}</span>
               </div>
               <span className={`pill ${market.action.toLowerCase()}`}>{market.action}</span>
             </div>
@@ -129,10 +130,10 @@ export function MarketTable({ markets }: { markets: Market[] }) {
               <strong>AI:</strong> {market.ai_summary}
             </p>
             <p>
-              <strong>Model timestamp:</strong> {formatTimestamp(market.latest_model_at)}
+              <strong>Model timestamp:</strong> {formatEasternTimestamp(market.latest_model_at)}
             </p>
           </article>
-        ))}
+        )})}
       </div>
     </div>
   );

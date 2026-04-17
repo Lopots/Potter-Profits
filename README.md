@@ -69,6 +69,8 @@ The frontend expects the backend at `http://localhost:8000`.
 If you use VS Code, you can run:
 
 - `Potter: Run App` to start both backend and frontend
+- `Potter: Run App Local Preview` to start backend on `8001` and frontend pointed at that API
+- `Potter: Frontend Local + Droplet Data` to run the frontend locally while reading live data from the DigitalOcean backend
 - `Potter: Backend Dev Server` to start only the API
 - `Potter: Frontend Dev Server` to start only the UI
 

@@ -163,3 +163,74 @@ class PipelineRunResponse(BaseModel):
     source: str | None = None
     layers: list[str] | None = None
     records_written: int | None = None
+
+
+class RawMarketRow(BaseModel):
+    external_id: str
+    venue: str
+    question: str
+    category: str
+    status: str
+    current_probability: float | None
+    volume_24h: float | None
+    liquidity: float | None
+    created_at: str
+    updated_at: str
+
+
+class RawMarketPriceRow(BaseModel):
+    market_external_id: str
+    venue: str
+    probability: float
+    price: float | None
+    volume_24h: float | None
+    liquidity: float | None
+    captured_at: str
+
+
+class RawNewsItemRow(BaseModel):
+    source: str
+    external_id: str
+    title: str
+    url: str
+    summary: str | None
+    published_at: str | None
+    created_at: str
+
+
+class RawModelRunRow(BaseModel):
+    market_external_id: str
+    deterministic_edge: float
+    ml_adjustment: float
+    ai_adjustment: float
+    final_probability: float
+    final_score: float
+    action: ActionType
+    confidence: int
+    created_at: str
+
+
+class RawTradeActionRow(BaseModel):
+    market_external_id: str
+    venue: str
+    side: ActionType
+    stake: float
+    status: str
+    rationale: str
+    is_paper: bool
+    created_at: str
+
+
+class RawAuditLogRow(BaseModel):
+    event_type: str
+    message: str
+    created_at: str
+
+
+class RawDataResponse(BaseModel):
+    markets: list[RawMarketRow]
+    market_prices: list[RawMarketPriceRow]
+    news_items: list[RawNewsItemRow]
+    model_runs: list[RawModelRunRow]
+    trade_actions: list[RawTradeActionRow]
+    audit_logs: list[RawAuditLogRow]

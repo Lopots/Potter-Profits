@@ -1,4 +1,5 @@
 import { SystemStatus } from "@/lib/types";
+import { formatEasternTimestamp } from "@/lib/time";
 
 function formatInterval(seconds: number) {
   if (seconds >= 3600) {
@@ -8,13 +9,6 @@ function formatInterval(seconds: number) {
     return `${Math.round(seconds / 60)}m`;
   }
   return `${seconds}s`;
-}
-
-function formatTimestamp(value: string | null) {
-  if (!value) {
-    return "Not yet";
-  }
-  return new Date(value).toLocaleString();
 }
 
 function boolLabel(value: boolean) {
@@ -61,16 +55,16 @@ export function SystemPanel({ systemStatus }: { systemStatus: SystemStatus }) {
       <div className="explanation-grid explanation-grid-wide">
         <article className="explanation-card">
           <span className="eyebrow">Freshness</span>
-          <p>Latest market capture: {formatTimestamp(systemStatus.latest_market_capture)}</p>
-          <p>Latest market ingestion: {formatTimestamp(systemStatus.latest_market_ingestion)}</p>
-          <p>Latest news capture: {formatTimestamp(systemStatus.latest_news_capture)}</p>
-          <p>Latest news ingestion: {formatTimestamp(systemStatus.latest_news_ingestion)}</p>
+          <p>Latest market capture: {formatEasternTimestamp(systemStatus.latest_market_capture)}</p>
+          <p>Latest market ingestion: {formatEasternTimestamp(systemStatus.latest_market_ingestion)}</p>
+          <p>Latest news capture: {formatEasternTimestamp(systemStatus.latest_news_capture)}</p>
+          <p>Latest news ingestion: {formatEasternTimestamp(systemStatus.latest_news_ingestion)}</p>
         </article>
 
         <article className="explanation-card">
           <span className="eyebrow">Model Timing</span>
-          <p>Latest model run: {formatTimestamp(systemStatus.latest_model_run)}</p>
-          <p>Latest training run: {formatTimestamp(systemStatus.latest_training_run)}</p>
+          <p>Latest model run: {formatEasternTimestamp(systemStatus.latest_model_run)}</p>
+          <p>Latest training run: {formatEasternTimestamp(systemStatus.latest_training_run)}</p>
           <p>Training enabled: {boolLabel(systemStatus.model_training_enabled)}</p>
           <p>Historical backfill: {boolLabel(systemStatus.historical_backfill_enabled)}</p>
         </article>
@@ -102,7 +96,7 @@ export function SystemPanel({ systemStatus }: { systemStatus: SystemStatus }) {
         <article className="explanation-card">
           <span className="eyebrow">Sync Status</span>
           <p>Remote sync enabled: {boolLabel(systemStatus.remote_sync_enabled)}</p>
-          <p>Latest remote sync: {formatTimestamp(systemStatus.latest_remote_sync)}</p>
+          <p>Latest remote sync: {formatEasternTimestamp(systemStatus.latest_remote_sync)}</p>
           <p>Latest sync status: {systemStatus.latest_remote_sync_status ?? "Not yet"}</p>
           <p>Remote DB target configured: {systemStatus.remote_database_url ? "Yes" : "No"}</p>
         </article>
@@ -114,7 +108,7 @@ export function SystemPanel({ systemStatus }: { systemStatus: SystemStatus }) {
           {systemStatus.recent_audit_events.slice(0, 9).map((event) => (
             <article key={`${event.event_type}-${event.created_at}`} className="audit-card">
               <strong>{event.event_type}</strong>
-              <span>{formatTimestamp(event.created_at)}</span>
+              <span>{formatEasternTimestamp(event.created_at)}</span>
               <p>{event.message}</p>
             </article>
           ))}

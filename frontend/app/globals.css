@@ -106,7 +106,7 @@ p {
 }
 
 .page-nav {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   align-self: center;
 }
 
@@ -467,6 +467,11 @@ th {
 
 .audit-list {
   grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.audit-list-single,
+.explanation-grid-single {
+  grid-template-columns: 1fr;
 }
 
 .system-panel p,

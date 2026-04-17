@@ -1,5 +1,8 @@
+from datetime import timezone
+
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
+from zoneinfo import ZoneInfo
 
 from .data import load_dashboard
 from .execution import get_execution_status
@@ -7,9 +10,12 @@ from .models import Market as MarketRecord
 from .models import MarketPrice
 from .models import ModelArtifact
 from .models import ModelRun as ModelRunRecord
+from .models import NewsItem
+from .models import AuditLog
 from .models import TradeAction
 from .pipeline import backfill_historical_market_data, get_pipeline_status, ingest_market_data, ingest_news_data, run_model_pipeline, sync_local_to_remote, train_probability_model
 from .schemas import (
+    RawAuditLogRow,
     DashboardResponse,
     Market,
     MarketSnapshot,
@@ -17,19 +23,34 @@ from .schemas import (
     PipelineStatusResponse,
     PotterState,
     PotterThought,
+    RawDataResponse,
+    RawMarketPriceRow,
+    RawMarketRow,
+    RawModelRunRow,
+    RawNewsItemRow,
     RiskGuardrail,
     Trade,
+    RawTradeActionRow,
 )
 
 
-def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
-    fallback = load_dashboard()
-    if db is None:
-        return fallback
+def _utc_iso(value):
+    if value is None:
+        return None
+    return value.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
 
-    market_rows = db.scalars(select(MarketRecord).where(MarketRecord.status == "active").order_by(MarketRecord.created_at)).all()
+
+def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
+    if db is None:
+        return load_dashboard()
+
+    market_rows = db.scalars(
+        select(MarketRecord)
+        .where(MarketRecord.status.in_(["active", "open"]))
+        .order_by(MarketRecord.created_at)
+    ).all()
     if not market_rows:
-        return fallback
+        return load_dashboard()
     live_market_rows = [market for market in market_rows if not (market.metadata_json or {}).get("seeded")]
     if live_market_rows:
         market_rows = live_market_rows
@@ -96,9 +117,9 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
                 pricing_summary=model_run.pricing_summary if model_run else "No model run has been stored yet.",
                 ml_summary=model_run.ml_summary if model_run else "ML validation has not been run yet.",
                 ai_summary=model_run.ai_summary if model_run else "AI/news context has not been run yet.",
-                latest_pull_at=latest_price.captured_at.isoformat() if latest_price else None,
-                previous_pull_at=previous_price.captured_at.isoformat() if previous_price else None,
-                latest_model_at=model_run.created_at.isoformat() if model_run else None,
+                latest_pull_at=_utc_iso(latest_price.captured_at) if latest_price else None,
+                previous_pull_at=_utc_iso(previous_price.captured_at) if previous_price else None,
+                latest_model_at=_utc_iso(model_run.created_at) if model_run else None,
                 price_change=round(market_prob - float(previous_price.probability), 4) if previous_price else 0.0,
             )
         )
@@ -112,10 +133,11 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
     )
 
     trade_rows = db.scalars(select(TradeAction).order_by(desc(TradeAction.created_at)).limit(12)).all()
+    eastern = ZoneInfo("America/New_York")
     trades = [
         Trade(
             id=f"trade-{trade_row.id}",
-            timestamp=trade_row.created_at.strftime("%Y-%m-%d %H:%M UTC"),
+            timestamp=trade_row.created_at.replace(tzinfo=ZoneInfo("UTC")).astimezone(eastern).strftime("%Y-%m-%d %I:%M %p ET"),
             market_id=trade_row.market_external_id,
             market_question=next(
                 (market.question for market in dashboard_markets if market.id == trade_row.market_external_id),
@@ -207,7 +229,7 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
 
     return DashboardResponse(
         snapshot=snapshot,
-        model_layers=fallback.model_layers,
+        model_layers=load_dashboard().model_layers,
         markets=dashboard_markets,
         potter=potter,
         trades=trades,
@@ -216,6 +238,92 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
 
 def get_system_status(db: Session) -> PipelineStatusResponse:
     return PipelineStatusResponse(**get_pipeline_status(db))
+
+
+def get_raw_data(db: Session) -> RawDataResponse:
+    market_rows = db.scalars(select(MarketRecord).order_by(desc(MarketRecord.updated_at)).limit(100)).all()
+    price_rows = db.scalars(select(MarketPrice).order_by(desc(MarketPrice.captured_at)).limit(150)).all()
+    news_rows = db.scalars(select(NewsItem).order_by(desc(NewsItem.created_at)).limit(100)).all()
+    model_rows = db.scalars(select(ModelRunRecord).order_by(desc(ModelRunRecord.created_at)).limit(150)).all()
+    trade_rows = db.scalars(select(TradeAction).order_by(desc(TradeAction.created_at)).limit(150)).all()
+    audit_rows = db.scalars(select(AuditLog).order_by(desc(AuditLog.created_at)).limit(150)).all()
+
+    return RawDataResponse(
+        markets=[
+            RawMarketRow(
+                external_id=row.external_id,
+                venue=row.venue,
+                question=row.question,
+                category=row.category,
+                status=row.status,
+                current_probability=row.current_probability,
+                volume_24h=row.volume_24h,
+                liquidity=row.liquidity,
+                created_at=_utc_iso(row.created_at),
+                updated_at=_utc_iso(row.updated_at),
+            )
+            for row in market_rows
+        ],
+        market_prices=[
+            RawMarketPriceRow(
+                market_external_id=row.market_external_id,
+                venue=row.venue,
+                probability=row.probability,
+                price=row.price,
+                volume_24h=row.volume_24h,
+                liquidity=row.liquidity,
+                captured_at=_utc_iso(row.captured_at),
+            )
+            for row in price_rows
+        ],
+        news_items=[
+            RawNewsItemRow(
+                source=row.source,
+                external_id=row.external_id,
+                title=row.title,
+                url=row.url,
+                summary=row.summary,
+                published_at=_utc_iso(row.published_at) if row.published_at else None,
+                created_at=_utc_iso(row.created_at),
+            )
+            for row in news_rows
+        ],
+        model_runs=[
+            RawModelRunRow(
+                market_external_id=row.market_external_id,
+                deterministic_edge=row.deterministic_edge,
+                ml_adjustment=row.ml_adjustment,
+                ai_adjustment=row.ai_adjustment,
+                final_probability=row.final_probability,
+                final_score=row.final_score,
+                action=row.action,
+                confidence=row.confidence,
+                created_at=_utc_iso(row.created_at),
+            )
+            for row in model_rows
+        ],
+        trade_actions=[
+            RawTradeActionRow(
+                market_external_id=row.market_external_id,
+                venue=row.venue,
+                side=row.side,
+                stake=row.stake,
+                status=row.status,
+                rationale=row.rationale,
+                is_paper=row.is_paper,
+                created_at=_utc_iso(row.created_at),
+            )
+            for row in trade_rows
+        ],
+        audit_logs=[
+            RawAuditLogRow(
+                event_type=row.event_type,
+                message=row.message,
+                created_at=_utc_iso(row.created_at),
+            )
+            for row in audit_rows
+        ],
+    )
 
 
 def run_market_ingestion(db: Session) -> PipelineRunResponse:

@@ -16,6 +16,20 @@
       "problemMatcher": []
     },
     {
+      "label": "Potter: Backend Dev Server (8001)",
+      "type": "shell",
+      "command": "python -m uvicorn app.main:app --reload --port 8001",
+      "options": {
+        "cwd": "${workspaceFolder}/backend"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "potter-backend"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Potter: Frontend Dev Server",
       "type": "shell",
       "command": "npm run dev",
@@ -30,10 +44,61 @@
       "problemMatcher": []
     },
     {
+      "label": "Potter: Frontend Dev Server (8001 API)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend",
+        "env": {
+          "NEXT_PUBLIC_API_BASE_URL": "http://127.0.0.1:8001"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "potter-frontend"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Potter: Frontend Dev Server (Droplet API)",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend",
+        "env": {
+          "NEXT_PUBLIC_API_BASE_URL": "http://147.182.173.207"
+        }
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "potter-frontend"
+      },
+      "problemMatcher": []
+    },
+    {
       "label": "Potter: Run App",
       "dependsOn": [
         "Potter: Backend Dev Server",
         "Potter: Frontend Dev Server"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Potter: Run App Local Preview",
+      "dependsOn": [
+        "Potter: Backend Dev Server (8001)",
+        "Potter: Frontend Dev Server (8001 API)"
+      ],
+      "dependsOrder": "parallel",
+      "problemMatcher": []
+    },
+    {
+      "label": "Potter: Frontend Local + Droplet Data",
+      "dependsOn": [
+        "Potter: Frontend Dev Server (Droplet API)"
       ],
       "dependsOrder": "parallel",
       "problemMatcher": []

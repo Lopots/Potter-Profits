@@ -154,3 +154,79 @@ export interface DashboardPageData {
   dashboard: DashboardResponse;
   systemStatus: SystemStatus;
 }
+
+export interface RawMarketRow {
+  external_id: string;
+  venue: string;
+  question: string;
+  category: string;
+  status: string;
+  current_probability: number | null;
+  volume_24h: number | null;
+  liquidity: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RawMarketPriceRow {
+  market_external_id: string;
+  venue: string;
+  probability: number;
+  price: number | null;
+  volume_24h: number | null;
+  liquidity: number | null;
+  captured_at: string;
+}
+
+export interface RawNewsItemRow {
+  source: string;
+  external_id: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  published_at: string | null;
+  created_at: string;
+}
+
+export interface RawModelRunRow {
+  market_external_id: string;
+  deterministic_edge: number;
+  ml_adjustment: number;
+  ai_adjustment: number;
+  final_probability: number;
+  final_score: number;
+  action: ActionType;
+  confidence: number;
+  created_at: string;
+}
+
+export interface RawTradeActionRow {
+  market_external_id: string;
+  venue: string;
+  side: ActionType;
+  stake: number;
+  status: string;
+  rationale: string;
+  is_paper: boolean;
+  created_at: string;
+}
+
+export interface RawAuditLogRow {
+  event_type: string;
+  message: string;
+  created_at: string;
+}
+
+export interface RawDataResponse {
+  markets: RawMarketRow[];
+  market_prices: RawMarketPriceRow[];
+  news_items: RawNewsItemRow[];
+  model_runs: RawModelRunRow[];
+  trade_actions: RawTradeActionRow[];
+  audit_logs: RawAuditLogRow[];
+}
+
+export interface DataPageData {
+  rawData: RawDataResponse;
+  systemStatus: SystemStatus;
+}
