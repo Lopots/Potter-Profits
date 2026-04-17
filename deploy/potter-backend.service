@@ -1,0 +1,16 @@
+[Unit]
+Description=Potter Profits Backend
+After=network.target
+
+[Service]
+Type=simple
+User=potter
+Group=potter
+WorkingDirectory=/opt/potter-profits/backend
+EnvironmentFile=/opt/potter-profits/backend/.env
+ExecStart=/opt/potter-profits/backend/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

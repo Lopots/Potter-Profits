@@ -1,0 +1,19 @@
+[Unit]
+Description=Potter Profits Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=potter
+Group=potter
+WorkingDirectory=/opt/potter-profits/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=INTERNAL_API_BASE_URL=http://127.0.0.1:8000
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
