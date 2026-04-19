@@ -1,152 +1,8 @@
-from .schemas import (
-    DashboardResponse,
-    Market,
-    MarketSnapshot,
-    ModelLayer,
-    PotterState,
-    PotterThought,
-    RiskGuardrail,
-    Trade,
-)
+from .schemas import DashboardResponse, MarketSnapshot, ModelLayer, PortfolioSummary, PotterState, RiskGuardrail
 
 
-def load_dashboard() -> DashboardResponse:
-    markets = [
-        Market(
-            id="btc-80k-june",
-            venue="Polymarket",
-            question="BTC > $80k by June 30?",
-            display_title="BTC > $80k by June 30?",
-            subtitle="Crypto catalyst basket",
-            question_segments=["BTC > $80k by June 30?", "Crypto catalyst basket"],
-            category="Crypto",
-            market_prob=0.42,
-            previous_market_prob=0.39,
-            potter_prob=0.61,
-            sentiment_score=0.68,
-            trend_score=0.57,
-            volume_score=0.31,
-            confidence=78,
-            edge=0.19,
-            action="BUY",
-            volume_24h=284000,
-            liquidity=1200000,
-            deterministic_edge=0.14,
-            ml_confidence_adjustment=0.03,
-            ai_news_adjustment=0.02,
-            final_score=0.19,
-            pricing_summary="Venue and cross-market pricing imply BTC is underpriced relative to current momentum.",
-            ml_summary="Historical setups with this trend and liquidity profile improved follow-through confidence.",
-            ai_summary="Potter grouped crypto headlines and found a positive catalyst skew rather than a single prediction.",
-            latest_pull_at="2026-04-16T23:18:59.260744",
-            previous_pull_at="2026-04-16T23:13:59.260744",
-            latest_model_at="2026-04-16T23:19:01.752252",
-            price_change=0.03,
-        ),
-        Market(
-            id="fed-cut-september",
-            venue="Kalshi",
-            question="Will the Fed cut rates before September?",
-            display_title="Will the Fed cut rates before September?",
-            subtitle="Macro rates",
-            question_segments=["Will the Fed cut rates before September?", "Macro rates"],
-            category="Macro",
-            market_prob=0.55,
-            previous_market_prob=0.56,
-            potter_prob=0.47,
-            sentiment_score=-0.22,
-            trend_score=-0.36,
-            volume_score=0.05,
-            confidence=66,
-            edge=-0.08,
-            action="HOLD",
-            volume_24h=142000,
-            liquidity=840000,
-            deterministic_edge=-0.05,
-            ml_confidence_adjustment=-0.02,
-            ai_news_adjustment=-0.01,
-            final_score=-0.08,
-            pricing_summary="Base pricing advantage is too small after venue spread and recent repricing are considered.",
-            ml_summary="Comparable macro setups have produced choppy outcomes, so confidence is reduced.",
-            ai_summary="News flow is mildly hawkish, which nudges the signal lower but does not create a trade.",
-            latest_pull_at="2026-04-16T23:18:59.260744",
-            previous_pull_at="2026-04-16T23:13:59.260744",
-            latest_model_at="2026-04-16T23:19:01.752252",
-            price_change=-0.01,
-        ),
-        Market(
-            id="eth-etf-q3",
-            venue="Polymarket",
-            question="Spot ETH ETF inflows exceed $4B by Q3 end?",
-            display_title="Spot ETH ETF inflows exceed $4B by Q3 end?",
-            subtitle="ETF demand monitoring",
-            question_segments=["Spot ETH ETF inflows exceed $4B by Q3 end?", "ETF demand monitoring"],
-            category="Crypto",
-            market_prob=0.37,
-            previous_market_prob=0.34,
-            potter_prob=0.52,
-            sentiment_score=0.44,
-            trend_score=0.39,
-            volume_score=0.18,
-            confidence=73,
-            edge=0.15,
-            action="BUY",
-            volume_24h=96000,
-            liquidity=520000,
-            deterministic_edge=0.10,
-            ml_confidence_adjustment=0.03,
-            ai_news_adjustment=0.02,
-            final_score=0.15,
-            pricing_summary="Cross-venue ETF pricing still trails the implied demand trend in this market.",
-            ml_summary="Past ETF flow dislocations with similar volume patterns resolved upward often enough to add confidence.",
-            ai_summary="Potter extracted bullish ETF narrative signals from batched headlines and forums.",
-            latest_pull_at="2026-04-16T23:18:59.260744",
-            previous_pull_at="2026-04-16T23:13:59.260744",
-            latest_model_at="2026-04-16T23:19:01.752252",
-            price_change=0.03,
-        ),
-        Market(
-            id="knicks-east-finals",
-            venue="FanDuel",
-            question="Knicks reach Eastern Conference Finals?",
-            display_title="Knicks reach Eastern Conference Finals?",
-            subtitle="NBA futures",
-            question_segments=["Knicks reach Eastern Conference Finals?", "NBA futures"],
-            category="Sports",
-            market_prob=0.48,
-            previous_market_prob=0.50,
-            potter_prob=0.34,
-            sentiment_score=-0.14,
-            trend_score=-0.49,
-            volume_score=-0.11,
-            confidence=71,
-            edge=-0.14,
-            action="SELL",
-            volume_24h=121000,
-            liquidity=210000,
-            deterministic_edge=-0.09,
-            ml_confidence_adjustment=-0.03,
-            ai_news_adjustment=-0.02,
-            final_score=-0.14,
-            pricing_summary="The venue still prices this too optimistically after recent performance deterioration.",
-            ml_summary="Similar late-series trend breakdowns have historically underperformed implied odds.",
-            ai_summary="Potter found injury and matchup language weighing negatively on the market.",
-            latest_pull_at="2026-04-16T23:18:59.260744",
-            previous_pull_at="2026-04-16T23:13:59.260744",
-            latest_model_at="2026-04-16T23:19:01.752252",
-            price_change=-0.02,
-        ),
-    ]
-
-    snapshot = MarketSnapshot(
-        total_markets=len(markets),
-        buy_signals=len([market for market in markets if market.action == "BUY"]),
-        sell_signals=len([market for market in markets if market.action == "SELL"]),
-        average_edge=round(sum(m.edge for m in markets) / len(markets), 3),
-        strongest_edge=max(abs(m.edge) for m in markets),
-    )
-
-    model_layers = [
+def build_model_layers() -> list[ModelLayer]:
+    return [
         ModelLayer(
             name="Deterministic Pricing Engine",
             role="Primary decision layer",
@@ -182,109 +38,50 @@ def load_dashboard() -> DashboardResponse:
         ),
     ]
 
-    potter = PotterState(
-        mode="paper",
-        autonomy_level="paper-auto",
-        mission="Monitor active markets, score mispricing with math first, validate edges with ML, and use AI as a supporting context layer.",
-        reasoning_summary=(
-            "Potter starts from deterministic pricing inefficiencies, applies a smaller ML confidence adjustment, "
-            "and only then layers in a limited AI news adjustment so the final score stays anchored to market structure."
-        ),
-        next_action="Queue a paper trade on BTC > $80k by June 30 because the model sees a +19% edge.",
-        guardrails=[
-            RiskGuardrail(
-                name="Live Capital Lock",
-                status="active",
-                detail="Real-money execution is disabled until explicit venue connectors and approval controls are added.",
-            ),
-            RiskGuardrail(
-                name="Stake Sizing",
-                status="watch",
-                detail="Paper trades are capped at 2% of simulated bankroll per position.",
-            ),
-            RiskGuardrail(
-                name="Audit Trail",
-                status="active",
-                detail="Every recommendation, simulated trade, and blocked action is logged for review.",
-            ),
-        ],
-        thoughts=[
-            PotterThought(
-                timestamp="09:05 ET",
-                title="Pricing engine completed",
-                detail="Converted venue odds to probability, compared cross-market prices, and filtered for liquid opportunities.",
-                tone="info",
-            ),
-            PotterThought(
-                timestamp="09:07 ET",
-                title="ML confidence increased",
-                detail="Historical pattern scoring raised confidence in the BTC setup after trend and volume confirmation.",
-                tone="success",
-            ),
-            PotterThought(
-                timestamp="09:09 ET",
-                title="AI context added carefully",
-                detail="Potter used batched headlines to adjust the signal slightly, but the trade remains anchored to the pricing edge.",
-                tone="info",
-            ),
-            PotterThought(
-                timestamp="09:10 ET",
-                title="Execution blocked for live funds",
-                detail="Potter prepared a trade plan, but live auto-betting remains locked behind safety controls.",
-                tone="warning",
-            ),
-        ],
-    )
 
-    trades = [
-        Trade(
-            id="pt-001",
-            timestamp="2026-04-16 09:10 ET",
-            market_id="btc-80k-june",
-            market_question="BTC > $80k by June 30?",
-            venue="Polymarket",
-            side="BUY",
-            stake=250.0,
-            edge_at_entry=0.19,
-            confidence=78,
-            status="simulated",
-            rationale="Sentiment, trend, and liquidity all align with a strong upward mispricing signal.",
-        ),
-        Trade(
-            id="pt-002",
-            timestamp="2026-04-16 08:45 ET",
-            market_id="knicks-east-finals",
-            market_question="Knicks reach Eastern Conference Finals?",
-            venue="FanDuel",
-            side="SELL",
-            stake=180.0,
-            edge_at_entry=-0.14,
-            confidence=71,
-            status="simulated",
-            rationale="Negative trend and weakening sentiment outweighed venue optimism.",
-        ),
-        Trade(
-            id="pt-003",
-            timestamp="2026-04-16 08:10 ET",
-            market_id="fed-cut-september",
-            market_question="Will the Fed cut rates before September?",
-            venue="Kalshi",
-            side="HOLD",
-            stake=0.0,
-            edge_at_entry=-0.08,
-            confidence=66,
-            status="blocked",
-            rationale="Signal remains below the minimum edge threshold, so Potter skipped execution.",
-        ),
-    ]
-
+def build_empty_dashboard() -> DashboardResponse:
     return DashboardResponse(
-        snapshot=snapshot,
-        model_layers=model_layers,
-        markets=markets,
-        potter=potter,
-        trades=trades,
+        snapshot=MarketSnapshot(
+            total_markets=0,
+            buy_signals=0,
+            sell_signals=0,
+            average_edge=0.0,
+            strongest_edge=0.0,
+        ),
+        model_layers=build_model_layers(),
+        markets=[],
+        potter=PotterState(
+            mode="paper",
+            autonomy_level="paper-auto",
+            mission="Monitor active markets, build true probabilities, and wait for live data before recommending trades.",
+            reasoning_summary="No live market rows are currently available, so Potter is intentionally blank instead of showing sample data.",
+            next_action="Restore live ingestion or rerun the market pipeline so Potter has real markets to score.",
+            guardrails=[
+                RiskGuardrail(
+                    name="No Mock Data",
+                    status="active",
+                    detail="Potter will show real live rows or an empty state only.",
+                )
+            ],
+            thoughts=[],
+        ),
+        trades=[],
+        portfolio=PortfolioSummary(
+            starting_bankroll=10000.0,
+            bank_balance=10000.0,
+            active_capital=0.0,
+            realized_pnl=0.0,
+            unrealized_pnl=0.0,
+            total_equity=10000.0,
+            completed_trades=0,
+            open_positions=0,
+            performance_points=[],
+        ),
     )
+
+
+def load_dashboard() -> DashboardResponse:
+    return build_empty_dashboard()
 
 
 def build_seed_news_items() -> list[dict[str, str | float]]:

@@ -5,7 +5,8 @@ from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 from zoneinfo import ZoneInfo
 
-from .data import load_dashboard
+from .core.config import settings
+from .data import build_empty_dashboard, build_model_layers, load_dashboard
 from .execution import get_execution_status
 from .models import Market as MarketRecord
 from .models import MarketPrice
@@ -61,7 +62,8 @@ def _build_market_blurb(market: Market) -> str:
     action_side = market.yes_label if market.edge >= 0 else market.no_label
     return (
         f"{market.display_title}: {market.yes_label} is {yes_prob:.1%}, {market.no_label} is {no_prob:.1%}, "
-        f"Potter's yes estimate is {market.potter_prob:.1%}, edge is {market.edge:+.1%}, "
+        f"Potter's true yes estimate is {market.potter_prob:.1%}, mispricing is {market.mispricing:+.1%}, "
+        f"fee-adjusted EV is {market.fee_adjusted_ev:+.1%} on Yes and {market.fee_adjusted_ev_no:+.1%} on No, "
         f"and the current action is {market.action} leaning toward {action_side}. "
         f"Math says: {market.pricing_summary} ML says: {market.ml_summary} AI/news says: {market.ai_summary}"
     )
@@ -93,7 +95,7 @@ def _market_match_score(message: str, market: Market) -> int:
 
 def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
     if db is None:
-        return load_dashboard()
+        return build_empty_dashboard()
 
     market_rows = db.scalars(
         select(MarketRecord)
@@ -101,7 +103,7 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         .order_by(MarketRecord.created_at)
     ).all()
     if not market_rows:
-        return load_dashboard()
+        return build_empty_dashboard()
     live_market_rows = [market for market in market_rows if not (market.metadata_json or {}).get("seeded")]
     if live_market_rows:
         market_rows = live_market_rows
@@ -138,6 +140,41 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
         metadata = market_row.metadata_json or {}
         market_prob = float(market_row.current_probability or 0.5)
         potter_prob = float(model_run.final_probability) if model_run else float(metadata.get("potter_probability", market_prob))
+        fee_rate = float(
+            model_run.raw_features.get("fee_rate", settings.prediction_market_fee_rate)
+            if model_run and model_run.raw_features
+            else settings.prediction_market_fee_rate
+        )
+        mispricing = float(
+            model_run.raw_features.get("mispricing", potter_prob - market_prob)
+            if model_run and model_run.raw_features
+            else potter_prob - market_prob
+        )
+        expected_value = float(
+            model_run.raw_features.get("expected_value_yes", potter_prob - market_prob)
+            if model_run and model_run.raw_features
+            else potter_prob - market_prob
+        )
+        expected_value_no = float(
+            model_run.raw_features.get("expected_value_no", (1 - potter_prob) - (1 - market_prob))
+            if model_run and model_run.raw_features
+            else (1 - potter_prob) - (1 - market_prob)
+        )
+        fee_adjusted_ev = float(
+            model_run.raw_features.get("fee_adjusted_ev_yes", expected_value - fee_rate)
+            if model_run and model_run.raw_features
+            else expected_value - fee_rate
+        )
+        fee_adjusted_ev_no = float(
+            model_run.raw_features.get("fee_adjusted_ev_no", expected_value_no - fee_rate)
+            if model_run and model_run.raw_features
+            else expected_value_no - fee_rate
+        )
+        trade_score = float(
+            model_run.raw_features.get("trade_score", 0.0)
+            if model_run and model_run.raw_features
+            else 0.0
+        )
         yes_prob = float(metadata.get("yes_prob", market_prob))
         no_prob = float(metadata.get("no_prob", 1 - market_prob))
         recent_prices = price_snapshots.get(market_row.external_id, [])
@@ -157,6 +194,9 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
                 category=market_row.category,
                 subcategory=metadata.get("subcategory"),
                 group_label=metadata.get("group_label"),
+                game_label=metadata.get("game_label"),
+                market_type=metadata.get("market_type"),
+                subject_label=metadata.get("subject_label"),
                 market_prob=market_prob,
                 previous_market_prob=float(previous_price.probability) if previous_price else None,
                 potter_prob=potter_prob,
@@ -168,7 +208,20 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
                 trend_score=float(metadata.get("trend_score", 0.0)),
                 volume_score=float(metadata.get("volume_score", 0.0)),
                 confidence=int(model_run.confidence if model_run else 55),
-                edge=round(potter_prob - market_prob, 4),
+                edge=round(mispricing, 4),
+                mispricing=round(mispricing, 4),
+                expected_value=round(expected_value, 4),
+                expected_value_no=round(expected_value_no, 4),
+                fee_adjusted_ev=round(fee_adjusted_ev, 4),
+                fee_adjusted_ev_no=round(fee_adjusted_ev_no, 4),
+                trade_score=round(trade_score, 4),
+                fee_rate=round(fee_rate, 4),
+                action_threshold=round(
+                    float(model_run.raw_features.get("action_edge_threshold", 0.10))
+                    if model_run and model_run.raw_features
+                    else 0.10,
+                    4,
+                ),
                 action=model_run.action if model_run else "HOLD",
                 volume_24h=int(market_row.volume_24h or 0),
                 liquidity=int(market_row.liquidity or 0),
@@ -382,7 +435,7 @@ def get_dashboard_data(db: Session | None = None) -> DashboardResponse:
 
     return DashboardResponse(
         snapshot=snapshot,
-        model_layers=load_dashboard().model_layers,
+        model_layers=build_model_layers(),
         markets=dashboard_markets,
         potter=potter,
         trades=trades,
@@ -479,6 +532,12 @@ def get_raw_data(db: Session) -> RawDataResponse:
                 ai_adjustment=row.ai_adjustment,
                 final_probability=row.final_probability,
                 final_score=row.final_score,
+                mispricing=float((row.raw_features or {}).get("mispricing", row.final_probability - ((row.raw_features or {}).get("market_probability", row.final_probability)))),
+                expected_value=float((row.raw_features or {}).get("expected_value_yes", 0.0)),
+                expected_value_no=float((row.raw_features or {}).get("expected_value_no", 0.0)),
+                fee_adjusted_ev=float((row.raw_features or {}).get("fee_adjusted_ev_yes", 0.0)),
+                fee_adjusted_ev_no=float((row.raw_features or {}).get("fee_adjusted_ev_no", 0.0)),
+                trade_score=float((row.raw_features or {}).get("trade_score", 0.0)),
                 action=row.action,
                 confidence=row.confidence,
                 created_at=_utc_iso(row.created_at),

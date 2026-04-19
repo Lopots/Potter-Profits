@@ -11,6 +11,9 @@ export interface Market {
   category: string;
   subcategory?: string | null;
   group_label?: string | null;
+  game_label?: string | null;
+  market_type?: string | null;
+  subject_label?: string | null;
   market_prob: number;
   previous_market_prob?: number | null;
   potter_prob: number;
@@ -23,6 +26,14 @@ export interface Market {
   volume_score: number;
   confidence: number;
   edge: number;
+  mispricing: number;
+  expected_value: number;
+  expected_value_no: number;
+  fee_adjusted_ev: number;
+  fee_adjusted_ev_no: number;
+  trade_score: number;
+  fee_rate: number;
+  action_threshold: number;
   action: ActionType;
   volume_24h: number;
   liquidity: number;
@@ -224,6 +235,12 @@ export interface RawModelRunRow {
   ai_adjustment: number;
   final_probability: number;
   final_score: number;
+  mispricing: number;
+  expected_value: number;
+  expected_value_no: number;
+  fee_adjusted_ev: number;
+  fee_adjusted_ev_no: number;
+  trade_score: number;
   action: ActionType;
   confidence: number;
   created_at: string;

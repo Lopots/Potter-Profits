@@ -4,6 +4,8 @@ import { DashboardPageData, Market } from "@/lib/types";
 import {
   MarketCategoryGroup,
   getCategoryRoute,
+  getEffectiveGameLabel,
+  getEffectiveMarketType,
   getEffectiveSubcategory,
   getMarketDisplayTitle,
   getMarketSecondaryLines,
@@ -43,6 +45,8 @@ export function MarketDetailShell({
   const { dashboard, systemStatus } = data;
   const { potter } = dashboard;
   const subcategory = getEffectiveSubcategory(market);
+  const gameLabel = getEffectiveGameLabel(market);
+  const marketType = getEffectiveMarketType(market);
 
   return (
     <main className="page-shell">
@@ -56,9 +60,11 @@ export function MarketDetailShell({
       <section className="panel section-intro">
         <span className="eyebrow">Market Detail</span>
         <h2>{getMarketDisplayTitle(market)}</h2>
-        <p>{getMarketSecondaryLines(market).join(" • ") || market.subtitle || market.question}</p>
+        <p>{getMarketSecondaryLines(market).join(" | ") || market.subtitle || market.question}</p>
         <div className="mini-summary">
           <span className="mini-pill">{categoryGroup.label}</span>
+          <span className="mini-pill">{subcategory}</span>
+          <span className="mini-pill">{marketType}</span>
           <span className="mini-pill">{market.venue}</span>
           <Link className="mini-pill" href={getCategoryRoute(categoryGroup.label)}>
             Back to {categoryGroup.label}
@@ -78,16 +84,16 @@ export function MarketDetailShell({
           <p>Latest venue-implied probability for the No side.</p>
         </div>
         <div className="panel stat-card">
-          <span className="eyebrow">Potter Yes Estimate</span>
+          <span className="eyebrow">Potter True Probability</span>
           <strong>{formatPercent(market.potter_prob)}</strong>
-          <p>Potter&apos;s latest blended estimate for the Yes side.</p>
+          <p>Potter&apos;s latest blended true-probability estimate for the Yes side.</p>
         </div>
         <div className="panel stat-card">
-          <span className="eyebrow">Recommended Side</span>
-          <strong className={market.edge >= 0 ? "positive" : "negative"}>
-            {market.edge >= 0 ? getYesLabel(market) : getNoLabel(market)}
+          <span className="eyebrow">Fee-Adjusted EV</span>
+          <strong className={market.fee_adjusted_ev >= 0 ? "positive" : "negative"}>
+            {formatSignedPercent(market.fee_adjusted_ev)}
           </strong>
-          <p>Current model lean based on the gap between Potter and the venue price.</p>
+          <p>Net expected value on the Yes side after subtracting the configured prediction-market fee.</p>
         </div>
       </section>
 
@@ -98,7 +104,7 @@ export function MarketDetailShell({
               <span className="eyebrow">Probability Context</span>
               <h2>Current state</h2>
             </div>
-            <p>Read this market on its own instead of bundled with adjacent contract titles.</p>
+            <p>Read this market on its own, with pricing, mispricing, EV, and action thresholds visible together.</p>
           </div>
           <div className="explanation-grid explanation-grid-single">
             <article className="explanation-card">
@@ -112,6 +118,12 @@ export function MarketDetailShell({
               <p>{getYesLabel(market)}: {formatPercent(getYesProbability(market))}</p>
               <p>{getNoLabel(market)}: {formatPercent(getNoProbability(market))}</p>
               <p>
+                Mispricing:{" "}
+                <span className={market.mispricing >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.mispricing)}
+                </span>
+              </p>
+              <p>
                 Previous yes probability:{" "}
                 {market.previous_market_prob == null ? "n/a" : formatPercent(market.previous_market_prob)}
               </p>
@@ -123,13 +135,47 @@ export function MarketDetailShell({
               </p>
             </article>
             <article className="explanation-card">
-              <span className="eyebrow">Action</span>
+              <span className="eyebrow">Trade Gate</span>
               <p>Potter action: {market.action}</p>
               <p>Confidence: {market.confidence}%</p>
               <p>
-                Category: {categoryGroup.label}
-                {subcategory ? ` • ${subcategory}` : ""}
+                Gross EV Yes:{" "}
+                <span className={market.expected_value >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.expected_value)}
+                </span>
               </p>
+              <p>
+                Gross EV No:{" "}
+                <span className={market.expected_value_no >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.expected_value_no)}
+                </span>
+              </p>
+              <p>
+                Fee-adjusted EV No:{" "}
+                <span className={market.fee_adjusted_ev_no >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.fee_adjusted_ev_no)}
+                </span>
+              </p>
+              <p>
+                Trade score:{" "}
+                <span className={market.trade_score >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.trade_score)}
+                </span>
+              </p>
+              <p>Action threshold: {formatPercent(market.action_threshold)}</p>
+              <p>Fee rate: {formatPercent(market.fee_rate)}</p>
+              <p>
+                Recommended side:{" "}
+                <strong className={market.mispricing >= 0 ? "positive" : "negative"}>
+                  {market.mispricing >= 0 ? getYesLabel(market) : getNoLabel(market)}
+                </strong>
+              </p>
+              <p>
+                Category: {categoryGroup.label}
+                {subcategory ? ` | ${subcategory}` : ""}
+              </p>
+              <p>Game: {gameLabel}</p>
+              <p>Market type: {marketType}</p>
               <p>Liquidity: {formatMoney(market.liquidity)}</p>
             </article>
           </div>
@@ -139,9 +185,9 @@ export function MarketDetailShell({
           <div className="section-header">
             <div>
               <span className="eyebrow">Model Breakdown</span>
-              <h2>Why Potter moved the probability</h2>
+              <h2>How Potter gets to a trade</h2>
             </div>
-            <p>The current score is decomposed into deterministic pricing, ML adjustment, and AI/news context.</p>
+            <p>Potter builds a true probability first, then turns it into mispricing, EV, and an action.</p>
           </div>
           <div className="breakdown-grid">
             <article className="breakdown-card">
@@ -173,12 +219,16 @@ export function MarketDetailShell({
             </article>
             <article className="breakdown-card">
               <div className="breakdown-head">
-                <strong>Final Score</strong>
-                <span className={market.final_score >= 0 ? "positive" : "negative"}>
-                  {formatSignedPercent(market.final_score)}
+                <strong>Decision Metric</strong>
+                <span className={market.fee_adjusted_ev >= 0 ? "positive" : "negative"}>
+                  {formatSignedPercent(market.fee_adjusted_ev)}
                 </span>
               </div>
-              <p>Potter blends the three layers into a final tradable score and action.</p>
+              <p>
+                Potter blends the three layers into a true probability, then converts that into mispricing,
+                fee-adjusted EV, and a liquidity/confidence-weighted trade score before deciding whether the
+                10-point action threshold is met.
+              </p>
             </article>
           </div>
         </div>

@@ -31,6 +31,17 @@ export function TradesShell({ data }: { data: DashboardPageData }) {
         </div>
       </section>
       <section className="stack-section">
+        {completedTrades.length === 0 ? (
+          <div className="panel">
+            <div className="section-header">
+              <div>
+                <span className="eyebrow">Completed Trades</span>
+                <h2>No completed live paper trades yet</h2>
+              </div>
+              <p>The trade feed stays blank until real paper trades are closed.</p>
+            </div>
+          </div>
+        ) : null}
         <TradeFeed trades={completedTrades} />
       </section>
     </main>

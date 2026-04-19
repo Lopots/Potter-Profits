@@ -91,6 +91,7 @@ class Settings(BaseModel):
     max_paper_trade_size: float = Field(default=250.0, ge=0)
     max_live_trade_size: float = Field(default=25.0, ge=0)
     daily_loss_limit: float = Field(default=100.0, ge=0)
+    prediction_market_fee_rate: float = Field(default=0.02, ge=0, le=0.25)
 
     newsapi_api_url: str = "https://newsapi.org/v2"
     newsapi_api_key: str = ""
@@ -151,6 +152,7 @@ def _build_settings() -> Settings:
         "max_paper_trade_size": float(merged.get("MAX_PAPER_TRADE_SIZE", 250)),
         "max_live_trade_size": float(merged.get("MAX_LIVE_TRADE_SIZE", 25)),
         "daily_loss_limit": float(merged.get("DAILY_LOSS_LIMIT", 100)),
+        "prediction_market_fee_rate": float(merged.get("PREDICTION_MARKET_FEE_RATE", 0.02)),
         "newsapi_api_url": merged.get("NEWSAPI_API_URL", "https://newsapi.org/v2"),
         "newsapi_api_key": merged.get("NEWSAPI_API_KEY", ""),
         "gnews_api_url": merged.get("GNEWS_API_URL", "https://gnews.io/api/v4"),

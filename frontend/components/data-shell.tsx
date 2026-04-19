@@ -268,7 +268,9 @@ export function DataShell({ data }: { data: DataPageData }) {
                   <th>ML</th>
                   <th>AI</th>
                   <th>Final Prob</th>
-                  <th>Score</th>
+                  <th>Mispricing</th>
+                  <th>Fee EV</th>
+                  <th>Trade Score</th>
                   <th>Action</th>
                   <th>Created</th>
                 </tr>
@@ -281,7 +283,9 @@ export function DataShell({ data }: { data: DataPageData }) {
                     <td>{formatSignedPercent(row.ml_adjustment)}</td>
                     <td>{formatSignedPercent(row.ai_adjustment)}</td>
                     <td>{formatPercent(row.final_probability)}</td>
-                    <td className={row.final_score >= 0 ? "positive" : "negative"}>{formatSignedPercent(row.final_score)}</td>
+                    <td className={row.mispricing >= 0 ? "positive" : "negative"}>{formatSignedPercent(row.mispricing)}</td>
+                    <td className={row.fee_adjusted_ev >= 0 ? "positive" : "negative"}>{formatSignedPercent(row.fee_adjusted_ev)}</td>
+                    <td className={row.trade_score >= 0 ? "positive" : "negative"}>{formatSignedPercent(row.trade_score)}</td>
                     <td>{row.action}</td>
                     <td>{formatEasternTimestamp(row.created_at)}</td>
                   </tr>

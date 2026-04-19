@@ -696,6 +696,16 @@ th {
   flex-wrap: wrap;
 }
 
+.game-stack {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.game-header {
+  margin-bottom: 0;
+}
+
 .trade-metrics {
   color: var(--blue-bright);
   font-size: 0.9rem;

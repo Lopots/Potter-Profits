@@ -24,6 +24,22 @@ from app.db.session import get_remote_db
 from app.execution import get_execution_status
 from app.models import AuditLog, Market, MarketNewsLink, MarketPrice, ModelArtifact, ModelRun, NewsItem, PortfolioPosition, TradeAction, TrainingRun
 
+ACTION_EDGE_THRESHOLD = 0.10
+
+
+def _clip_probability(value: float) -> float:
+    return min(max(value, 0.01), 0.99)
+
+
+def _expected_value_yes(true_probability: float, market_price: float) -> float:
+    return (true_probability * (1 - market_price)) - ((1 - true_probability) * market_price)
+
+
+def _expected_value_no(true_probability: float, market_price: float) -> float:
+    no_true_probability = 1 - true_probability
+    no_market_price = 1 - market_price
+    return (no_true_probability * (1 - no_market_price)) - (true_probability * no_market_price)
+
 
 def _upsert_market(db: Session, market_payload: dict[str, object]) -> None:
     external_id = str(market_payload["external_id"])
@@ -722,11 +738,16 @@ def run_model_pipeline(db: Session) -> dict[str, object]:
             ml_adjustment = round((learned_prob - market_prob) * 0.35, 4)
 
         final_score = round(deterministic_edge + ml_adjustment + ai_adjustment, 4)
-        final_probability = min(max(round(market_prob + final_score, 4), 0.01), 0.99)
+        final_probability = _clip_probability(round(market_prob + final_score, 4))
+        mispricing = round(final_probability - market_prob, 4)
+        expected_value_yes = round(_expected_value_yes(final_probability, market_prob), 4)
+        expected_value_no = round(_expected_value_no(final_probability, market_prob), 4)
+        fee_adjusted_ev_yes = round(expected_value_yes - settings.prediction_market_fee_rate, 4)
+        fee_adjusted_ev_no = round(expected_value_no - settings.prediction_market_fee_rate, 4)
 
-        if final_score >= 0.1:
+        if mispricing >= ACTION_EDGE_THRESHOLD and fee_adjusted_ev_yes > 0:
             action = "BUY"
-        elif final_score <= -0.1:
+        elif mispricing <= -ACTION_EDGE_THRESHOLD and fee_adjusted_ev_no > 0:
             action = "SELL"
         else:
             action = "HOLD"
@@ -735,6 +756,10 @@ def run_model_pipeline(db: Session) -> dict[str, object]:
             95,
             max(52, int(55 + abs(final_score) * 160 + abs(trend_score) * 10 + abs(volume_score) * 8)),
         )
+        liquidity_weight = min(max(float(market.liquidity or 0.0) / 25000.0, 0.1), 1.0)
+        confidence_factor = max(confidence / 100.0, 0.5)
+        selected_fee_adjusted_ev = fee_adjusted_ev_yes if mispricing >= 0 else fee_adjusted_ev_no
+        trade_score = round(selected_fee_adjusted_ev * liquidity_weight * confidence_factor, 4)
 
         model_run = ModelRun(
             market_external_id=market.external_id,
@@ -745,14 +770,33 @@ def run_model_pipeline(db: Session) -> dict[str, object]:
             final_score=final_score,
             action=action,
             confidence=confidence,
-            pricing_summary=f"Stored market pricing for {market.question} implies a base edge of {deterministic_edge:+.1%}.",
-            ml_summary=f"Trend and volume regime checks adjusted confidence by {ml_adjustment:+.1%}.",
-            ai_summary=f"News-linked context contributed an AI adjustment of {ai_adjustment:+.1%}.",
+            pricing_summary=(
+                f"Potter true probability is {final_probability:.1%} versus the market at {market_prob:.1%}, "
+                f"for mispricing of {mispricing:+.1%} and fee-adjusted EV of "
+                f"{selected_fee_adjusted_ev:+.1%} on the favored side."
+            ),
+            ml_summary=(
+                f"Trend and volume regime checks adjusted the true-probability anchor by {ml_adjustment:+.1%}, "
+                f"after deterministic pricing contributed {deterministic_edge:+.1%}."
+            ),
+            ai_summary=(
+                f"News-linked context contributed {ai_adjustment:+.1%}. Gross EV is "
+                f"{expected_value_yes:+.1%} on Yes and {expected_value_no:+.1%} on No."
+            ),
             raw_features={
                 "market_probability": market_prob,
+                "true_probability": final_probability,
                 "trend_score": trend_score,
                 "volume_score": volume_score,
                 "seeded_sentiment": seeded_sentiment,
+                "mispricing": mispricing,
+                "expected_value_yes": expected_value_yes,
+                "expected_value_no": expected_value_no,
+                "fee_adjusted_ev_yes": fee_adjusted_ev_yes,
+                "fee_adjusted_ev_no": fee_adjusted_ev_no,
+                "trade_score": trade_score,
+                "fee_rate": settings.prediction_market_fee_rate,
+                "action_edge_threshold": ACTION_EDGE_THRESHOLD,
             },
         )
         db.add(model_run)
@@ -764,7 +808,11 @@ def run_model_pipeline(db: Session) -> dict[str, object]:
                 side=action,
                 stake=settings.max_paper_trade_size if action != "HOLD" else 0.0,
                 status="simulated" if action != "HOLD" else "blocked",
-                rationale=f"Model pipeline generated {action} from final score {final_score:+.1%}.",
+                rationale=(
+                    f"Model pipeline generated {action} because mispricing was {mispricing:+.1%}, "
+                    f"fee-adjusted EV was {selected_fee_adjusted_ev:+.1%}, and the action threshold is "
+                    f"{ACTION_EDGE_THRESHOLD:.0%}."
+                ),
                 is_paper=True,
             )
         )

@@ -17,6 +17,9 @@ class Market(BaseModel):
     category: str
     subcategory: str | None = None
     group_label: str | None = None
+    game_label: str | None = None
+    market_type: str | None = None
+    subject_label: str | None = None
     market_prob: float = Field(ge=0, le=1)
     previous_market_prob: float | None = Field(default=None, ge=0, le=1)
     potter_prob: float = Field(ge=0, le=1)
@@ -29,6 +32,14 @@ class Market(BaseModel):
     volume_score: float = Field(ge=-1, le=1)
     confidence: int = Field(ge=0, le=100)
     edge: float
+    mispricing: float = 0.0
+    expected_value: float = 0.0
+    expected_value_no: float = 0.0
+    fee_adjusted_ev: float = 0.0
+    fee_adjusted_ev_no: float = 0.0
+    trade_score: float = 0.0
+    fee_rate: float = Field(default=0.0, ge=0, le=1)
+    action_threshold: float = Field(default=0.1, ge=0, le=1)
     action: ActionType
     volume_24h: int
     liquidity: int
@@ -234,6 +245,12 @@ class RawModelRunRow(BaseModel):
     ai_adjustment: float
     final_probability: float
     final_score: float
+    mispricing: float = 0.0
+    expected_value: float = 0.0
+    expected_value_no: float = 0.0
+    fee_adjusted_ev: float = 0.0
+    fee_adjusted_ev_no: float = 0.0
+    trade_score: float = 0.0
     action: ActionType
     confidence: int
     created_at: str

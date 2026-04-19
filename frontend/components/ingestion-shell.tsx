@@ -87,8 +87,9 @@ export function IngestionShell({ data }: { data: DashboardPageData }) {
                 <th>Previous Price</th>
                 <th>Current Price</th>
                 <th>Change</th>
-                <th>Potter Prob</th>
-                <th>Edge</th>
+                <th>True Prob</th>
+                <th>Mispricing</th>
+                <th>EV</th>
                 <th>Liquidity</th>
               </tr>
             </thead>
@@ -108,7 +109,8 @@ export function IngestionShell({ data }: { data: DashboardPageData }) {
                   <td>{formatPercent(market.market_prob)}</td>
                   <td className={market.price_change >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.price_change)}</td>
                   <td>{formatPercent(market.potter_prob)}</td>
-                  <td className={market.edge >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.edge)}</td>
+                  <td className={market.mispricing >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.mispricing)}</td>
+                  <td className={market.fee_adjusted_ev >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.fee_adjusted_ev)}</td>
                   <td>{formatMoney(market.liquidity)}</td>
                 </tr>
               ))}

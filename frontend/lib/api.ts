@@ -1,5 +1,3 @@
-import { mockSystemStatus } from "./mock-system-status";
-import { mockDashboardData } from "./mock-data";
 import { DashboardPageData, DashboardResponse, DataPageData, RawDataResponse, SystemStatus } from "./types";
 
 const API_BASE_URL =
@@ -16,6 +14,81 @@ const emptyRawData: RawDataResponse = {
   audit_logs: [],
 };
 
+const emptyDashboardData: DashboardResponse = {
+  snapshot: {
+    total_markets: 0,
+    buy_signals: 0,
+    sell_signals: 0,
+    average_edge: 0,
+    strongest_edge: 0,
+  },
+  model_layers: [],
+  markets: [],
+  potter: {
+    mode: "paper",
+    autonomy_level: "paper-auto",
+    mission: "Monitor active markets and wait for live data.",
+    reasoning_summary: "No live dashboard payload is available right now, so Potter is showing a blank state instead of sample data.",
+    next_action: "Restore the live dashboard feed and rerun ingestion.",
+    guardrails: [],
+    thoughts: [],
+  },
+  trades: [],
+  portfolio: {
+    starting_bankroll: 10000,
+    bank_balance: 10000,
+    active_capital: 0,
+    realized_pnl: 0,
+    unrealized_pnl: 0,
+    total_equity: 10000,
+    completed_trades: 0,
+    open_positions: 0,
+    performance_points: [],
+  },
+};
+
+const emptySystemStatus: SystemStatus = {
+  database_url: "",
+  remote_database_url: "",
+  market_sources: {},
+  news_sources: {},
+  execution: {
+    paper_trading_enabled: true,
+    live_trading_enabled: false,
+    execution_venue: "kalshi",
+    max_paper_trade_size: 0,
+    max_live_trade_size: 0,
+    daily_loss_limit: 0,
+    live_trading_lock_reason: "Live system status is unavailable.",
+  },
+  openai_configured: false,
+  scheduler_enabled: false,
+  remote_sync_enabled: false,
+  historical_backfill_enabled: false,
+  model_training_enabled: false,
+  market_poll_seconds: 0,
+  news_poll_seconds: 0,
+  model_poll_seconds: 0,
+  sync_interval_seconds: 0,
+  historical_backfill_interval_seconds: 0,
+  model_train_interval_seconds: 0,
+  latest_market_capture: null,
+  latest_news_capture: null,
+  latest_model_run: null,
+  latest_training_run: null,
+  latest_remote_sync: null,
+  latest_remote_sync_status: null,
+  latest_market_ingestion: null,
+  latest_news_ingestion: null,
+  latest_market_ingestion_status: null,
+  latest_news_ingestion_status: null,
+  market_count: 0,
+  news_count: 0,
+  model_run_count: 0,
+  training_run_count: 0,
+  recent_audit_events: [],
+};
+
 export async function getDashboardData(): Promise<DashboardResponse> {
   try {
     const response = await fetch(`${API_BASE_URL}/api/dashboard`, {
@@ -28,7 +101,7 @@ export async function getDashboardData(): Promise<DashboardResponse> {
 
     return response.json() as Promise<DashboardResponse>;
   } catch {
-    return mockDashboardData;
+    return emptyDashboardData;
   }
 }
 
@@ -44,7 +117,7 @@ export async function getSystemStatus(): Promise<SystemStatus> {
 
     return response.json() as Promise<SystemStatus>;
   } catch {
-    return mockSystemStatus;
+    return emptySystemStatus;
   }
 }
 

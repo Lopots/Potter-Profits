@@ -2,8 +2,10 @@ import Link from "next/link";
 
 import { DashboardPageData } from "@/lib/types";
 import {
+  buildGameGroups,
   MarketCategoryGroup,
   buildSubcategoryGroups,
+  getEffectiveMarketType,
   getMarketDisplayTitle,
   getMarketRoute,
   getMarketSecondaryLines,
@@ -63,51 +65,66 @@ export function CategoryShell({
             </div>
             <p>{subgroup.markets.length} markets in this slice.</p>
           </div>
-          <div className="table-wrap">
-            <table className="dense-table">
-              <thead>
-                <tr>
-                  <th>Market</th>
-                  <th>Venue</th>
-                  <th>Last Pull</th>
-                  <th>Yes</th>
-                  <th>No</th>
-                  <th>Potter</th>
-                  <th>Edge</th>
-                  <th>Action</th>
-                  <th>Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {subgroup.markets.map((market) => (
-                  <tr key={`${subgroup.slug}-${market.id}`}>
-                    <td>
-                      <div className="market-cell">
-                        <strong>{getMarketDisplayTitle(market)}</strong>
-                        {getMarketSecondaryLines(market).map((line, index) => (
-                          <span key={`${market.id}-${index}`}>{line}</span>
-                        ))}
-                      </div>
-                    </td>
-                    <td>{market.venue}</td>
-                    <td>{formatEasternTimestamp(market.latest_pull_at)}</td>
-                    <td>{getYesLabel(market)} {formatPercent(getYesProbability(market))}</td>
-                    <td>{getNoLabel(market)} {formatPercent(getNoProbability(market))}</td>
-                    <td>{formatPercent(market.potter_prob)}</td>
-                    <td className={market.edge >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.edge)}</td>
-                    <td>
-                      <span className={`pill ${market.action.toLowerCase()}`}>{market.action}</span>
-                    </td>
-                    <td>
-                      <Link className="mini-pill" href={getMarketRoute(categoryGroup.label, market.id)}>
-                        View market
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          {buildGameGroups(subgroup.markets).map((gameGroup) => (
+            <div key={`${subgroup.slug}-${gameGroup.slug}`} className="game-stack">
+              <div className="section-header game-header">
+                <div>
+                  <span className="eyebrow">Game</span>
+                  <h2>{gameGroup.label}</h2>
+                </div>
+                <p>{gameGroup.markets.length} markets</p>
+              </div>
+              <div className="table-wrap">
+                <table className="dense-table">
+                  <thead>
+                    <tr>
+                      <th>Market</th>
+                      <th>Type</th>
+                      <th>Venue</th>
+                      <th>Last Pull</th>
+                      <th>Yes</th>
+                      <th>No</th>
+                      <th>True Prob</th>
+                      <th>Mispricing</th>
+                      <th>EV</th>
+                      <th>Action</th>
+                      <th>Open</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gameGroup.markets.map((market) => (
+                      <tr key={`${gameGroup.slug}-${market.id}`}>
+                        <td>
+                          <div className="market-cell">
+                            <strong>{getMarketDisplayTitle(market)}</strong>
+                            {getMarketSecondaryLines(market).slice(1).map((line, index) => (
+                              <span key={`${market.id}-${index}`}>{line}</span>
+                            ))}
+                          </div>
+                        </td>
+                        <td>{getEffectiveMarketType(market)}</td>
+                        <td>{market.venue}</td>
+                        <td>{formatEasternTimestamp(market.latest_pull_at)}</td>
+                        <td>{getYesLabel(market)} {formatPercent(getYesProbability(market))}</td>
+                        <td>{getNoLabel(market)} {formatPercent(getNoProbability(market))}</td>
+                        <td>{formatPercent(market.potter_prob)}</td>
+                        <td className={market.mispricing >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.mispricing)}</td>
+                        <td className={market.fee_adjusted_ev >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.fee_adjusted_ev)}</td>
+                        <td>
+                          <span className={`pill ${market.action.toLowerCase()}`}>{market.action}</span>
+                        </td>
+                        <td>
+                          <Link className="mini-pill" href={getMarketRoute(categoryGroup.label, market.id)}>
+                            View market
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
         </section>
       ))}
     </main>

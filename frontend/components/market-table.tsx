@@ -40,8 +40,9 @@ export function MarketTable({ markets }: { markets: Market[] }) {
               <th>Previous</th>
               <th>Now</th>
               <th>Delta</th>
-              <th>Potter</th>
-              <th>Edge</th>
+              <th>True Prob</th>
+              <th>Mispricing</th>
+              <th>EV</th>
               <th>Model</th>
               <th>Action</th>
               <th>Confidence</th>
@@ -77,7 +78,8 @@ export function MarketTable({ markets }: { markets: Market[] }) {
                 <td>{formatPercent(market.market_prob)}</td>
                 <td className={market.price_change >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.price_change)}</td>
                 <td>{formatPercent(market.potter_prob)}</td>
-                <td className={market.edge >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.edge)}</td>
+                <td className={market.mispricing >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.mispricing)}</td>
+                <td className={market.fee_adjusted_ev >= 0 ? "positive" : "negative"}>{formatSignedPercent(market.fee_adjusted_ev)}</td>
                 <td>
                   <div className="model-micro">
                     <span>M {formatSignedPercent(market.deterministic_edge)}</span>
@@ -111,14 +113,14 @@ export function MarketTable({ markets }: { markets: Market[] }) {
             <div className="score-row">
               <span>Market {formatPercent(market.market_prob)}</span>
               <span>Previous {market.previous_market_prob == null ? "n/a" : formatPercent(market.previous_market_prob)}</span>
-              <span>Potter {formatPercent(market.potter_prob)}</span>
-              <span>Edge {formatSignedPercent(market.edge)}</span>
+              <span>True {formatPercent(market.potter_prob)}</span>
+              <span>Mispricing {formatSignedPercent(market.mispricing)}</span>
             </div>
             <div className="score-row">
               <span>Math {formatSignedPercent(market.deterministic_edge)}</span>
               <span>ML {formatSignedPercent(market.ml_confidence_adjustment)}</span>
               <span>AI {formatSignedPercent(market.ai_news_adjustment)}</span>
-              <span>Final {formatSignedPercent(market.final_score)}</span>
+              <span>EV {formatSignedPercent(market.fee_adjusted_ev)}</span>
             </div>
             <p>
               <strong>Pricing:</strong> {market.pricing_summary}

@@ -48,6 +48,20 @@ export function MarketsShell({ data }: { data: DashboardPageData }) {
       </section>
 
       <section className="category-grid">
+        {categoryGroups.length === 0 ? (
+          <article className="panel category-card">
+            <div className="section-header">
+              <div>
+                <span className="eyebrow">No Live Markets</span>
+                <h2>Sports market data is currently blank</h2>
+              </div>
+            </div>
+            <p>
+              Potter is not showing sample rows. If this stays empty, the live dashboard feed or sports ingestion
+              needs to be rerun on the Droplet.
+            </p>
+          </article>
+        ) : null}
         {categoryGroups.map((group) => {
           const strongest = group.markets[0];
 

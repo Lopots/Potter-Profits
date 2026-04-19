@@ -14,6 +14,12 @@ export interface MarketSubcategoryGroup {
   markets: Market[];
 }
 
+export interface MarketGameGroup {
+  slug: string;
+  label: string;
+  markets: Market[];
+}
+
 export function slugifySegment(value: string) {
   return value
     .toLowerCase()
@@ -94,7 +100,7 @@ export function getMarketSecondaryLines(market: Market) {
     return segments;
   }
 
-  return [market.group_label, market.subtitle]
+  return [market.game_label, market.group_label, market.subtitle]
     .filter(Boolean)
     .map((value) => String(value).trim())
     .filter(Boolean);
@@ -207,6 +213,42 @@ export function getEffectiveSubcategory(market: Market) {
   return category;
 }
 
+export function getEffectiveGameLabel(market: Market) {
+  if (market.game_label?.trim()) {
+    return market.game_label.trim();
+  }
+
+  if (market.group_label?.trim()) {
+    return market.group_label.trim();
+  }
+
+  const secondary = getMarketSecondaryLines(market);
+  if (secondary.length > 0) {
+    return secondary[0];
+  }
+
+  return "Other Markets";
+}
+
+export function getEffectiveMarketType(market: Market) {
+  if (market.market_type?.trim()) {
+    return market.market_type.trim();
+  }
+
+  const text = marketText(market);
+  if (/(points|rebounds|assists|hits|strikeouts|home runs|passing|rushing|receiving|1\+|2\+|3\+|10\+|15\+|20\+|25\+|30\+)/.test(text)) {
+    return "Player Prop";
+  }
+  if (/(over|under|wins by|spread|run line|goal line|totals|scored)/.test(text)) {
+    return "Game Line";
+  }
+  if (/(win|beat|moneyline|to win)/.test(text)) {
+    return "Moneyline";
+  }
+
+  return "Market";
+}
+
 export function buildCategoryGroups(markets: Market[]) {
   const grouped = new Map<string, Market[]>();
   const standaloneMarkets = markets.filter(isStandaloneMarket);
@@ -233,6 +275,25 @@ export function buildSubcategoryGroups(markets: Market[]) {
 
   for (const market of markets) {
     const label = getEffectiveSubcategory(market);
+    const bucket = grouped.get(label) ?? [];
+    bucket.push(market);
+    grouped.set(label, bucket);
+  }
+
+  return [...grouped.entries()]
+    .map(([label, bucket]) => ({
+      slug: slugifySegment(label),
+      label,
+      markets: [...bucket].sort((a, b) => Math.abs(b.edge) - Math.abs(a.edge)),
+    }))
+    .sort((a, b) => b.markets.length - a.markets.length);
+}
+
+export function buildGameGroups(markets: Market[]) {
+  const grouped = new Map<string, Market[]>();
+
+  for (const market of markets) {
+    const label = getEffectiveGameLabel(market);
     const bucket = grouped.get(label) ?? [];
     bucket.push(market);
     grouped.set(label, bucket);

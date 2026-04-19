@@ -125,6 +125,20 @@ export function DashboardShell({ data }: { data: DashboardPageData }) {
         <PotterAssistant />
       </section>
 
+      {dashboard.markets.length === 0 ? (
+        <section className="primary-grid">
+          <div className="panel">
+            <div className="section-header">
+              <div>
+                <span className="eyebrow">Live Data</span>
+                <h2>No live market rows available</h2>
+              </div>
+              <p>Potter is blank by design until the live dashboard feed returns real rows.</p>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
       <section className="stats-grid">
         <StatCard
           label="Bank Balance"

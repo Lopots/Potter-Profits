@@ -80,6 +80,50 @@ def _extract_group_label(raw_market: dict[str, Any]) -> str | None:
     return None
 
 
+def _extract_game_label(raw_market: dict[str, Any], title: str, subtitle: str | None) -> str | None:
+    for candidate in [subtitle, str(raw_market.get("event_title") or "").strip(), str(raw_market.get("series_title") or "").strip()]:
+        if candidate and any(token in candidate.lower() for token in [" vs ", " @ ", " at ", " v ", "game", "match", "final", "innings"]):
+            return candidate
+
+    event_ticker = str(raw_market.get("event_ticker") or "").strip()
+    if event_ticker and "-" in event_ticker:
+        return event_ticker.replace("-", " ")
+
+    if any(token in title.lower() for token in [" vs ", " @ ", " at "]):
+        return title
+
+    return None
+
+
+def _extract_market_type(title: str, subtitle: str | None) -> str:
+    combined = " ".join(filter(None, [title, subtitle or ""])).lower()
+
+    if any(token in combined for token in ["points", "rebounds", "assists", "hits", "strikeouts", "home runs", "passing", "rushing", "receiving", "1+", "2+", "3+", "10+", "15+", "20+", "25+", "30+"]):
+        return "Player Prop"
+    if any(token in combined for token in ["over", "under", "wins by", "spread", "run line", "goal line", "totals", "scored"]):
+        return "Game Line"
+    if any(token in combined for token in ["win", "beat", "moneyline", "to win"]):
+        return "Moneyline"
+
+    return "Market"
+
+
+def _extract_subject_label(title: str) -> str | None:
+    normalized = title.strip()
+    if ":" in normalized:
+        subject = normalized.split(":", 1)[0].replace("yes ", "").replace("no ", "").strip()
+        if subject:
+            return subject
+
+    lowered = normalized.lower()
+    if lowered.startswith("yes "):
+        return normalized[4:].strip()
+    if lowered.startswith("no "):
+        return normalized[3:].strip()
+
+    return None
+
+
 def _parse_market_datetime(raw_market: dict[str, Any]) -> datetime | None:
     candidate_keys = [
         "close_time",
@@ -288,6 +332,9 @@ def normalize_kalshi_market(raw_market: dict[str, Any]) -> dict[str, Any]:
     category = _infer_primary_category(combined_text)
     subcategory = _infer_subcategory(combined_text)
     group_label = _extract_group_label(raw_market)
+    game_label = _extract_game_label(raw_market, title, subtitle)
+    market_type = _extract_market_type(title, subtitle)
+    subject_label = _extract_subject_label(title)
 
     return {
         "external_id": f"kalshi:{raw_market.get('ticker')}",
@@ -305,6 +352,9 @@ def normalize_kalshi_market(raw_market: dict[str, Any]) -> dict[str, Any]:
             "subtitle": subtitle,
             "subcategory": subcategory,
             "group_label": group_label,
+            "game_label": game_label,
+            "market_type": market_type,
+            "subject_label": subject_label,
             "yes_prob": probability,
             "no_prob": no_probability,
             "yes_label": "Yes",
